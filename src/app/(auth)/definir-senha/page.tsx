@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { createBrowserClient } from "@/lib/supabase/client";
 import { definirSenha, type EstadoSenha } from "./actions";
 
 const LINK_INVALIDO = "Link expirado ou inválido. Solicite um novo.";
@@ -12,29 +11,25 @@ const LINK_INVALIDO = "Link expirado ou inválido. Solicite um novo.";
 export default function DefinirSenhaPage() {
   const [estado, acao, pendente] = useActionState<EstadoSenha, FormData>(definirSenha, {});
   const [erroLink, setErroLink] = useState<string>();
+  const [tokens, setTokens] = useState<{ access: string; refresh: string }>();
 
-  // Fluxo implícito: tokens chegam no hash da URL (#access_token=...&refresh_token=...).
+  // Fluxo implícito: tokens chegam no hash da URL; são enviados ao servidor no formulário.
   useEffect(() => {
     const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     if (hash.get("error_description") || hash.get("error")) {
       setErroLink(LINK_INVALIDO);
-      return;
+    } else if (hash.get("access_token") && hash.get("refresh_token")) {
+      setTokens({ access: hash.get("access_token")!, refresh: hash.get("refresh_token")! });
     }
-    const access_token = hash.get("access_token");
-    const refresh_token = hash.get("refresh_token");
-    if (!access_token || !refresh_token) return;
-    createBrowserClient()
-      .auth.setSession({ access_token, refresh_token })
-      .then(({ error }) => {
-        if (error) setErroLink(LINK_INVALIDO);
-        else window.history.replaceState(null, "", window.location.pathname);
-      });
+    if (window.location.hash) window.history.replaceState(null, "", window.location.pathname);
   }, []);
 
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
       <form action={acao} className="w-full max-w-sm space-y-4 rounded-lg border p-6">
         <h1 className="text-xl font-semibold">Definir nova senha</h1>
+        {tokens && <input type="hidden" name="access_token" value={tokens.access} />}
+        {tokens && <input type="hidden" name="refresh_token" value={tokens.refresh} />}
         <label className="block space-y-1 text-sm">
           <span>Nova senha</span>
           <input name="senha" type="password" required minLength={8} autoComplete="new-password" className="w-full rounded border px-3 py-2" />
