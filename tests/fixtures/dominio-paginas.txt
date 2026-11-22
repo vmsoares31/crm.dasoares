@@ -62,7 +62,7 @@ Complemento:                                             Motivo:                
 UF:                      SP                              Data:                      6822-6/00
 1CEP:                    08285000                        Foro Comarca:
 Caixa postal:                                            CNAE 2.3:                  Gestão e administração da propriedade imobiliária
-1País:                   BRASIL                          CAE:                       SILVIO JOSE GONCALVES
+1País:                   BRASIL                          CAE:                       JOSE EXEMPLO SANTOS
 Telefone:                (11) 62055120                   Ramo de atividade:         Não
 1Fax:                                                    Responsável Legal:
 E-mail:                  www.catita.com.br               Outro registro:            10.000,00
@@ -80,8 +80,8 @@ CPF/CNPJ Nome do sócio                                                      Par
 
 1Data quadro societário: 20/06/1978
 
-1000.139.294-88  4 - REIS FERREIRA DA SILVA                                         50,00  20/06/1978  00/00/0000
-000.147.213-50   5 - SILVIO JOSE GONCALVES                                          50,00  20/06/1978  00/00/0000
+1000.139.294-88  4 - MARIA EXEMPLO DA SILVA                                         50,00  20/06/1978  00/00/0000
+000.147.213-50   5 - JOSE EXEMPLO SANTOS                                          50,00  20/06/1978  00/00/0000
 
 1
 
@@ -127,10 +127,10 @@ CPF/CNPJ Nome do sócio                                                      Par
 
 1Data quadro societário: 10/02/1984
 
-000.155.132-97   6 - ARINETE ARAUJO SOARES                                               0  07/05/2004  31/12/2025
-000.163.051-24   7 - JEAN COHN                                                           0  07/05/2004  31/12/2025
+000.155.132-97   6 - ANA FICTICIA ARAUJO                                               0  07/05/2004  31/12/2025
+000.163.051-24   7 - LUIZ FICTICIO COHEN                                                           0  07/05/2004  31/12/2025
 1000.170.970-45  8 - PEDRO HENRIQUE MARTINS SOARES                                  50,00   07/12/2022  00/00/0000
-000.178.889-21   301 - DONIZETTI APARECIDO SOARES                                        0  07/08/2007  31/12/2025
+000.178.889-21   301 - CARLOS FICTICIO APARECIDO                                        0  07/08/2007  31/12/2025
 1000.186.808-01  329 - BEATRIZ MORAES DE MELO CAUTELLA                              50,00   15/06/2026  00/00/0000
 
 Sistema licenciado para D.A. SOARES CONTABILIDADE LTDA.

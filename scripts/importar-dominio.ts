@@ -1,4 +1,5 @@
-/* Uso: npx tsx scripts/importar-dominio.ts <relatorio.txt> [--dry]
+/* Uso: npx tsx scripts/importar-dominio.ts <relatorio.txt> --projeto <ref> [--dry]
+ * --projeto: ref do projeto Supabase; recusa rodar se NEXT_PUBLIC_SUPABASE_URL não contiver esse ref.
  * Importa o relatório "Empresas – Dados Cadastrais" do Domínio (pdftotext -layout -enc UTF-8) em `clientes`/`socios`.
  * Idempotente: upsert por documento; só reescreve clientes ainda 'a_revisar' (confirmados nunca são tocados). */
 import { readFileSync } from "node:fs";
@@ -38,8 +39,11 @@ function linhaCliente(e: EmpresaImportada) {
 async function main() {
   const args = process.argv.slice(2);
   const dry = args.includes("--dry");
+  const iProj = args.indexOf("--projeto");
+  const projeto = iProj >= 0 ? args[iProj + 1] : undefined;
+  if (iProj >= 0) args.splice(iProj, 2);
   const caminho = args.find((a) => !a.startsWith("--"));
-  if (!caminho) throw new Error("Uso: npx tsx scripts/importar-dominio.ts <relatorio.txt> [--dry]");
+  if (!caminho) throw new Error("Uso: npx tsx scripts/importar-dominio.ts <relatorio.txt> --projeto <ref> [--dry]");
 
   const paginas = dividirPaginas(readFileSync(caminho, "utf8"));
   const empresas = paginas.map(parsePaginaDominio);
@@ -47,6 +51,11 @@ async function main() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const chave = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!dry && (!url || !chave)) throw new Error("NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY ausentes em .env.local.");
+  if (!dry) {
+    if (!projeto) throw new Error("Informe --projeto <ref> do projeto Supabase de destino.");
+    if (!url!.includes(projeto)) throw new Error(`NEXT_PUBLIC_SUPABASE_URL (${url}) não corresponde ao projeto "${projeto}". Abortado.`);
+    console.log(`Gravando no projeto Supabase: ${projeto} (${url})`);
+  }
   const db = dry ? null : createClient(url!, chave!, { auth: { persistSession: false, autoRefreshToken: false } });
 
   const r = { paginas: paginas.length, novos: 0, atualizados: 0, inativos: 0, suspeitos: 0, confirmados: 0, ignorados: [] as string[] };
@@ -114,7 +123,9 @@ async function main() {
   console.log(`Já confirmados (não tocados): ${r.confirmados}`);
   console.log(`Ignorados: ${r.ignorados.length}`);
   for (const i of r.ignorados) console.log(`  - ${i}`);
-  const semDoc = empresas.filter((e) => !e.documento).length;
+  const semDocLista = empresas.filter((e) => !e.documento);
+  const semDoc = semDocLista.length;
+  for (const e of semDocLista) console.log(`  sem documento válido (importado com documento nulo): ${e.codigo} - ${e.razaoSocial}`);
   const semSit = empresas.filter((e) => e.situacao === null).length;
   console.log(`(sem documento válido: ${semDoc}; sem situação: ${semSit}; ativas: ${empresas.filter((e) => e.situacao === "Ativa").length})`);
 }

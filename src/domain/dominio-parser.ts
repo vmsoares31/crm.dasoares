@@ -46,13 +46,17 @@ function limparPrefixo(linha: string): string {
   return /^1[A-Za-zÀ-ú]/.test(linha) ? " " + linha.slice(1) : linha;
 }
 
-function dataISO(s: string): DataISO | null {
+/** "00/00/0000" = sem data (null); data impossível = "invalida". */
+function dataISO(s: string): DataISO | null | "invalida" {
+  if (s === "00/00/0000") return null;
   const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s);
-  if (!m || m[3] === "0000") return null;
+  if (!m) return "invalida";
+  const d = new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])));
+  if (d.getUTCDate() !== Number(m[1]) || d.getUTCMonth() !== Number(m[2]) - 1) return "invalida";
   return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
-function parseSocio(linha: string): SocioImportado | null {
+function parseSocio(linha: string): (Omit<SocioImportado, "saida"> & { saida: DataISO | null | "invalida" }) | null {
   const re =
     /^(\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})\s+\d+\s*-\s*(.+?)\s{2,}([\d.,]+)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})\s*$/;
   // O "1" parasita pode colar no CPF; o formato com pontuação torna a tentativa direta inequívoca.
@@ -97,11 +101,16 @@ export function parsePaginaDominio(texto: string): EmpresaImportada {
   }
   if (!documento) suspeitos.push("documento");
 
+  // Sinais de coluna esquerda deslocada: e-mail que não é e-mail, ou campo CNPJ/CPF diferente do cabeçalho.
   let email = campo("E-mail");
+  let deslocado = false;
   if (email && !EMAIL_RE.test(email)) {
     email = "";
     suspeitos.push("email");
+    deslocado = true;
   }
+  if (somenteDigitos(campo("CNPJ/CPF/CEI/CAEPF")) !== somenteDigitos(cabecalho)) deslocado = true;
+  if (!situacao) suspeitos.push("situacao");
 
   let cep = somenteDigitos(campo("CEP"));
   let enderecoSuspeito = false;
@@ -118,6 +127,7 @@ export function parsePaginaDominio(texto: string): EmpresaImportada {
   }
   // Valores deslocados quando há campos em branco: o bloco inteiro de endereço não é confiável.
   if (enderecoSuspeito) suspeitos.push("endereco");
+  if (deslocado && !enderecoSuspeito) suspeitos.push("endereco");
   const razaoSocial = campo("Razão social");
   if (!razaoSocial) suspeitos.push("razao_social");
 
@@ -125,6 +135,10 @@ export function parsePaginaDominio(texto: string): EmpresaImportada {
   const endereco = campo("Endereço");
 
   const checarIe = (nome: string, valor: string): string => {
+    if (deslocado) {
+      suspeitos.push(nome);
+      return "";
+    }
     const d = somenteDigitos(valor);
     if (valor && (valor.includes("@") || (d.length >= 11 && d === documento))) {
       suspeitos.push(nome);
@@ -133,6 +147,8 @@ export function parsePaginaDominio(texto: string): EmpresaImportada {
     return valor;
   };
 
+  const telefone = deslocado ? "" : campo("Telefone");
+  if (deslocado) suspeitos.push("telefone");
   const socios: SocioImportado[] = [];
   if (iSocios >= 0) {
     for (const l of linhas.slice(iSocios)) {
@@ -141,7 +157,11 @@ export function parsePaginaDominio(texto: string): EmpresaImportada {
       if (!cpfValido(s.cpf) && !cnpjValido(s.cpf)) {
         if (!suspeitos.includes("socio_cpf")) suspeitos.push("socio_cpf");
       }
-      socios.push(s);
+      if (s.saida === "invalida") {
+        if (!suspeitos.includes("socio_saida")) suspeitos.push("socio_saida");
+        continue; // não importa como ativo
+      }
+      socios.push({ ...s, saida: s.saida });
     }
   }
 
@@ -157,7 +177,7 @@ export function parsePaginaDominio(texto: string): EmpresaImportada {
     cidade: campo("Município"),
     uf,
     cep,
-    telefone: campo("Telefone"),
+    telefone,
     email,
     inscricaoEstadual: checarIe("inscricao_estadual", campo("Insc. estadual")),
     inscricaoMunicipal: checarIe("inscricao_municipal", campo("Insc. municipal")),
