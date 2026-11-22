@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import type { Database } from "@/db/database.types";
 
-const ROTAS_PUBLICAS = ["/login", "/recuperar-senha", "/api/saude"];
+const ROTAS_PUBLICAS = ["/login", "/recuperar-senha", "/auth/callback", "/definir-senha", "/api/saude"];
 
 function redirecionar(request: NextRequest, caminho: string, base: NextResponse) {
   const url = request.nextUrl.clone();

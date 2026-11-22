@@ -4,18 +4,25 @@ import { revalidatePath } from "next/cache";
 
 import { alteracaoDeixaSemAdministrador, type Papel } from "@/domain/permissoes";
 import { registrarAuditoria } from "@/lib/auditoria";
-import { exigirPermissao } from "@/lib/auth";
+import { SemPermissaoError, exigirPermissao } from "@/lib/auth";
+import { urlCallback } from "@/lib/site";
 import { createServerClient, createServiceClient } from "@/lib/supabase/server";
 
 export type Resultado = { ok?: boolean; erro?: string };
 
 const PAPEIS: Papel[] = ["administrador", "colaborador"];
 
+function erroPermissao(e: unknown): string {
+  return e instanceof SemPermissaoError
+    ? "Você não tem permissão para gerenciar usuários."
+    : "Não foi possível verificar suas permissões. Tente novamente.";
+}
+
 export async function convidarUsuario(_: Resultado, dados: FormData): Promise<Resultado> {
   try {
     await exigirPermissao("usuarios.gerenciar");
-  } catch {
-    return { erro: "Você não tem permissão para gerenciar usuários." };
+  } catch (e) {
+    return { erro: erroPermissao(e) };
   }
   const email = String(dados.get("email") ?? "").trim();
   const nome = String(dados.get("nome") ?? "").trim();
@@ -31,17 +38,34 @@ export async function convidarUsuario(_: Resultado, dados: FormData): Promise<Re
     };
   }
 
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, { data: { nome } });
-  if (error || !data.user) {
-    return { erro: `Não foi possível enviar o convite: ${error?.message ?? "erro desconhecido"}` };
+  let usuarioId: string | undefined;
+  const convite = await admin.auth.admin.inviteUserByEmail(email, {
+    data: { nome },
+    redirectTo: urlCallback(),
+  });
+  if (convite.data.user) {
+    usuarioId = convite.data.user.id;
+  } else {
+    // Possível reenvio após falha parcial: o usuário já existe no Auth.
+    for (let pagina = 1; !usuarioId; pagina++) {
+      const { data: lista, error: erroLista } = await admin.auth.admin.listUsers({ page: pagina, perPage: 200 });
+      if (erroLista) break;
+      usuarioId = lista.users.find((u) => u.email?.toLowerCase() === email.toLowerCase())?.id;
+      if (lista.users.length < 200) break;
+    }
+    if (!usuarioId) {
+      return { erro: `Não foi possível enviar o convite: ${convite.error?.message ?? "erro desconhecido"}` };
+    }
   }
 
   const { error: erroPerfil } = await admin
     .from("perfis")
-    .upsert({ usuario_id: data.user.id, nome, papel, ativo: true });
-  if (erroPerfil) return { erro: `Convite enviado, mas falhou ao criar o perfil: ${erroPerfil.message}` };
+    .upsert({ usuario_id: usuarioId, nome, papel, ativo: true });
+  if (erroPerfil) {
+    return { erro: `Falha ao criar o perfil: ${erroPerfil.message}. Tente convidar novamente.` };
+  }
 
-  await registrarAuditoria("usuario.convidar", "perfis", data.user.id, { email, papel });
+  await registrarAuditoria("usuario.convidar", "perfis", usuarioId, { email, papel });
   revalidatePath("/usuarios");
   return { ok: true };
 }
@@ -53,8 +77,8 @@ async function alterarPerfil(
 ): Promise<Resultado> {
   try {
     await exigirPermissao("usuarios.gerenciar");
-  } catch {
-    return { erro: "Você não tem permissão para gerenciar usuários." };
+  } catch (e) {
+    return { erro: erroPermissao(e) };
   }
   const supabase = await createServerClient();
   const { data: perfis, error: erroLista } = await supabase

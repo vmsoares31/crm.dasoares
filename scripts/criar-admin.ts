@@ -29,7 +29,10 @@ async function main() {
   }
 
   if (!userId) {
-    const { data, error } = await admin.auth.admin.inviteUserByEmail(email, { data: { nome } });
+    const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
+      data: { nome },
+      redirectTo: `${(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/+$/, "")}/auth/callback`,
+    });
     if (error || !data.user) throw error ?? new Error("Falha ao convidar.");
     userId = data.user.id;
     console.log(`Convite enviado para ${email}.`);
