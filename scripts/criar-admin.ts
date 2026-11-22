@@ -9,9 +9,16 @@ try {
 }
 
 async function main() {
-  const email = process.argv[2]?.trim();
-  const nome = process.argv[3]?.trim() || email?.split("@")[0];
-  if (!email || !nome) throw new Error("Uso: npx tsx scripts/criar-admin.ts <email> [nome]");
+  const args = process.argv.slice(2);
+  const i = args.indexOf("--senha");
+  const senha = i >= 0 ? args[i + 1] : undefined;
+  if (i >= 0) {
+    if (!senha || senha.length < 8) throw new Error("--senha exige uma senha de pelo menos 8 caracteres.");
+    args.splice(i, 2);
+  }
+  const email = args[0]?.trim();
+  const nome = args[1]?.trim() || email?.split("@")[0];
+  if (!email || !nome) throw new Error("Uso: npx tsx scripts/criar-admin.ts <email> [nome] [--senha <senha>]");
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const chave = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -28,10 +35,15 @@ async function main() {
     if (data.users.length < 200) break;
   }
 
-  if (!userId) {
+  if (!userId && senha) {
+    const { data, error } = await admin.auth.admin.createUser({ email, password: senha, email_confirm: true });
+    if (error || !data.user) throw error ?? new Error("Falha ao criar usuário.");
+    userId = data.user.id;
+    console.log(`Usuário ${email} criado com senha definida.`);
+  } else if (!userId) {
     const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
       data: { nome },
-      redirectTo: `${(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/+$/, "")}/auth/callback`,
+      redirectTo: `${(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/+$/, "")}/definir-senha`,
     });
     if (error || !data.user) throw error ?? new Error("Falha ao convidar.");
     userId = data.user.id;

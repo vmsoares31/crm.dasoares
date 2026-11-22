@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { alteracaoDeixaSemAdministrador, type Papel } from "@/domain/permissoes";
 import { registrarAuditoria } from "@/lib/auditoria";
 import { SemPermissaoError, exigirPermissao } from "@/lib/auth";
-import { urlCallback } from "@/lib/site";
+import { urlDefinirSenha } from "@/lib/site";
 import { createServerClient, createServiceClient } from "@/lib/supabase/server";
 
 export type Resultado = { ok?: boolean; erro?: string };
@@ -41,7 +41,7 @@ export async function convidarUsuario(_: Resultado, dados: FormData): Promise<Re
   let usuarioId: string | undefined;
   const convite = await admin.auth.admin.inviteUserByEmail(email, {
     data: { nome },
-    redirectTo: urlCallback(),
+    redirectTo: urlDefinirSenha(),
   });
   if (convite.data.user) {
     usuarioId = convite.data.user.id;

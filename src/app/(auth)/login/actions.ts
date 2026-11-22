@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 
-import { urlCallback } from "@/lib/site";
+import { urlDefinirSenha } from "@/lib/site";
 import { createServerClient } from "@/lib/supabase/server";
 
 export type EstadoLogin = { erro?: string };
@@ -42,7 +42,7 @@ export async function recuperarSenha(
   const email = String(dados.get("email") ?? "").trim();
   if (!email) return { erro: "Informe o e-mail." };
   const supabase = await createServerClient();
-  await supabase.auth.resetPasswordForEmail(email, { redirectTo: urlCallback() });
+  await supabase.auth.resetPasswordForEmail(email, { redirectTo: urlDefinirSenha() });
   // Resposta neutra para não revelar quais e-mails existem.
   return { ok: true };
 }
