@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import { CabecalhoPagina } from "@/components/cabecalho-pagina";
 import { listarCarteiras } from "@/db/carteiras";
 import { listarClientesParaMassa } from "@/db/clientes";
 import { formatarBRL } from "@/domain/dinheiro";
@@ -26,14 +25,12 @@ export default async function EdicaoEmMassaPage() {
   }));
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-4">
-        <h1 className="text-2xl font-semibold">Edição em massa</h1>
-        <Link href="/clientes" className="text-sm underline">Voltar aos clientes</Link>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Clientes ativos e a revisar. Somente as linhas alteradas são salvas; clientes sem contrato recebem um contrato legado (fechado).
-      </p>
+    <div className="space-y-6">
+      <CabecalhoPagina
+        titulo="Edição em massa"
+        voltar={{ href: "/clientes", rotulo: "Clientes" }}
+        descricao="Clientes ativos e a revisar. Somente as linhas alteradas são salvas; clientes sem contrato recebem um contrato legado (fechado)."
+      />
       <TabelaMassa linhas={linhas} carteiras={carteiras.filter((c) => c.ativa).map((c) => ({ id: c.id, nome: c.nome }))} />
     </div>
   );

@@ -1,5 +1,5 @@
-import Link from "next/link";
-
+import { CabecalhoPagina } from "@/components/cabecalho-pagina";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { listarServicosExtras } from "@/db/servicos-extras";
 import { formatarBRL } from "@/domain/dinheiro";
 import { pode } from "@/domain/permissoes";
@@ -12,22 +12,24 @@ export default async function ServicosExtrasPage() {
   const servicos = await listarServicosExtras();
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <h1 className="text-2xl font-semibold">Serviços extras</h1>
-        <Link href="/escritorio" className="text-sm underline">Voltar ao escritório</Link>
-      </div>
-      {somenteLeitura && <p className="text-sm text-muted-foreground">Somente leitura: apenas administradores podem alterar.</p>}
-      <div>
+      <CabecalhoPagina
+        titulo="Serviços extras"
+        voltar={{ href: "/escritorio", rotulo: "Escritório" }}
+        descricao={somenteLeitura ? "Somente leitura: apenas administradores podem alterar." : "Serviços cobrados à parte do honorário mensal."}
+      />
+      <Card className="gap-0 divide-y py-0">
         {servicos.map((s) => (
           <FormularioServico key={s.id + s.atualizado_em} id={s.id} nome={s.nome} valor={formatarBRL(s.valor)} ativo={s.ativo} somenteLeitura={somenteLeitura} />
         ))}
-        {servicos.length === 0 && <p className="text-sm">Nenhum serviço extra cadastrado.</p>}
-      </div>
+        {servicos.length === 0 && <p className="px-5 py-6 text-sm text-muted-foreground">Nenhum serviço extra cadastrado.</p>}
+      </Card>
       {!somenteLeitura && (
-        <section className="space-y-2">
-          <h2 className="font-medium">Novo serviço</h2>
+        <Card className="gap-0 pb-1">
+          <CardHeader>
+            <CardTitle><h2>%s</h2></CardTitle>
+          </CardHeader>
           <FormularioServico somenteLeitura={false} />
-        </section>
+        </Card>
       )}
     </div>
   );

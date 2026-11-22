@@ -2,7 +2,9 @@
 
 import { useActionState } from "react";
 
+import { Mensagem } from "@/components/mensagem";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { salvarEscritorio, type Resultado } from "./actions";
 
 const SECOES: { titulo: string; campos: [string, string][] }[] = [
@@ -43,22 +45,24 @@ export function FormularioEscritorio({
     <form action={acao} className="space-y-6">
       <fieldset disabled={somenteLeitura} className="space-y-6">
         {SECOES.map((s) => (
-          <section key={s.titulo} className="space-y-3 rounded-lg border p-4">
-            <h2 className="font-medium">{s.titulo}</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
+          <Card key={s.titulo}>
+            <CardHeader>
+              <CardTitle><h2>{s.titulo}</h2></CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
               {s.campos.map(([nome, rotulo]) => (
-                <label key={nome} className="space-y-1 text-sm">
+                <label key={nome} className="space-y-1.5 text-sm font-medium">
                   <span>{rotulo}</span>
-                  <input name={nome} defaultValue={valores[nome] ?? ""} className="block w-full rounded border px-3 py-2 disabled:bg-muted" />
+                  <input name={nome} defaultValue={valores[nome] ?? ""} className="campo w-full font-normal" />
                 </label>
               ))}
-            </div>
-          </section>
+            </CardContent>
+          </Card>
         ))}
         {!somenteLeitura && <Button type="submit" disabled={pendente}>Salvar</Button>}
       </fieldset>
-      {estado.erro && <p role="alert" className="text-sm text-red-600">{estado.erro}</p>}
-      {estado.ok && <p role="status" className="text-sm text-green-700">Cadastro salvo.</p>}
+      {estado.erro && <Mensagem tipo="erro">{estado.erro}</Mensagem>}
+      {estado.ok && <Mensagem tipo="ok">Cadastro salvo.</Mensagem>}
     </form>
   );
 }

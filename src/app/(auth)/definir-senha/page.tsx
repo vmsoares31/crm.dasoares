@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 
+import { Mensagem } from "@/components/mensagem";
 import { Button } from "@/components/ui/button";
 import { definirSenha, type EstadoSenha } from "./actions";
 
@@ -25,27 +26,26 @@ export default function DefinirSenhaPage() {
   }, []);
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <form action={acao} className="w-full max-w-sm space-y-4 rounded-lg border p-6">
-        <h1 className="text-xl font-semibold">Definir nova senha</h1>
-        {tokens && <input type="hidden" name="access_token" value={tokens.access} />}
-        {tokens && <input type="hidden" name="refresh_token" value={tokens.refresh} />}
-        <label className="block space-y-1 text-sm">
-          <span>Nova senha</span>
-          <input name="senha" type="password" required minLength={8} autoComplete="new-password" className="w-full rounded border px-3 py-2" />
-        </label>
-        <label className="block space-y-1 text-sm">
-          <span>Confirmar senha</span>
-          <input name="confirmacao" type="password" required minLength={8} autoComplete="new-password" className="w-full rounded border px-3 py-2" />
-        </label>
-        {(erroLink || estado.erro) && (
-          <p role="alert" className="text-sm text-red-600">{erroLink ?? estado.erro}</p>
-        )}
-        <Button type="submit" className="w-full" disabled={pendente || !!erroLink}>Salvar senha</Button>
-        {erroLink && (
-          <Link href="/recuperar-senha" className="block text-center text-sm underline">Solicitar novo link</Link>
-        )}
-      </form>
-    </main>
+    <form action={acao} className="space-y-5">
+      <div className="space-y-1">
+        <h1 className="text-xl font-extrabold">Definir nova senha</h1>
+        <p className="text-sm text-muted-foreground">A senha precisa ter pelo menos 8 caracteres.</p>
+      </div>
+      {tokens && <input type="hidden" name="access_token" value={tokens.access} />}
+      {tokens && <input type="hidden" name="refresh_token" value={tokens.refresh} />}
+      <label className="block space-y-1.5 text-sm font-semibold">
+        <span>Nova senha</span>
+        <input name="senha" type="password" required minLength={8} autoComplete="new-password" className="campo w-full font-normal" />
+      </label>
+      <label className="block space-y-1.5 text-sm font-semibold">
+        <span>Confirmar senha</span>
+        <input name="confirmacao" type="password" required minLength={8} autoComplete="new-password" className="campo w-full font-normal" />
+      </label>
+      {(erroLink || estado.erro) && <Mensagem tipo="erro">{erroLink ?? estado.erro}</Mensagem>}
+      <Button type="submit" size="lg" className="w-full" disabled={pendente || !!erroLink}>Salvar senha</Button>
+      {erroLink && (
+        <Link href="/recuperar-senha" className="link block text-center text-sm">Solicitar novo link</Link>
+      )}
+    </form>
   );
 }

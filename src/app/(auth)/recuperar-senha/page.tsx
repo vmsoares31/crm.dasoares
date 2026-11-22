@@ -3,28 +3,28 @@
 import Link from "next/link";
 import { useActionState } from "react";
 
+import { Mensagem } from "@/components/mensagem";
 import { Button } from "@/components/ui/button";
 import { recuperarSenha } from "../login/actions";
 
 export default function RecuperarSenhaPage() {
   const [estado, acao, pendente] = useActionState(recuperarSenha, {});
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <form action={acao} className="w-full max-w-sm space-y-4 rounded-lg border p-6">
-        <h1 className="text-xl font-semibold">Recuperar senha</h1>
-        <label className="block space-y-1 text-sm">
-          <span>E-mail</span>
-          <input name="email" type="email" required className="w-full rounded border px-3 py-2" />
-        </label>
-        {estado.erro && <p role="alert" className="text-sm text-red-600">{estado.erro}</p>}
-        {estado.ok && (
-          <p role="status" className="text-sm text-green-700">
-            Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha.
-          </p>
-        )}
-        <Button type="submit" className="w-full" disabled={pendente}>Enviar link</Button>
-        <Link href="/login" className="block text-center text-sm underline">Voltar ao login</Link>
-      </form>
-    </main>
+    <form action={acao} className="space-y-5">
+      <div className="space-y-1">
+        <h1 className="text-xl font-extrabold">Recuperar senha</h1>
+        <p className="text-sm text-muted-foreground">Enviaremos um link para você criar uma nova senha.</p>
+      </div>
+      <label className="block space-y-1.5 text-sm font-semibold">
+        <span>E-mail</span>
+        <input name="email" type="email" required className="campo w-full font-normal" />
+      </label>
+      {estado.erro && <Mensagem tipo="erro">{estado.erro}</Mensagem>}
+      {estado.ok && (
+        <Mensagem tipo="ok">Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha.</Mensagem>
+      )}
+      <Button type="submit" size="lg" className="w-full" disabled={pendente}>Enviar link</Button>
+      <Link href="/login" className="link block text-center text-sm">Voltar ao login</Link>
+    </form>
   );
 }

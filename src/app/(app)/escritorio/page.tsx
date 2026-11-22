@@ -1,4 +1,8 @@
 import Link from "next/link";
+import { Layers, Wallet } from "lucide-react";
+
+import { CabecalhoPagina } from "@/components/cabecalho-pagina";
+import { buttonVariants } from "@/components/ui/button";
 
 import { obterEscritorio } from "@/db/escritorio";
 import { formatarDocumento } from "@/domain/documentos";
@@ -31,12 +35,20 @@ export default async function EscritorioPage() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <h1 className="text-2xl font-semibold">Escritório</h1>
-      {somenteLeitura && <p className="text-sm text-muted-foreground">Somente leitura: apenas administradores podem alterar.</p>}
-      <nav className="flex gap-4 text-sm underline">
-        <Link href="/escritorio/carteiras">Carteiras</Link>
-        <Link href="/escritorio/servicos-extras">Serviços extras</Link>
-      </nav>
+      <CabecalhoPagina
+        titulo="Escritório"
+        descricao={somenteLeitura ? "Somente leitura: apenas administradores podem alterar." : "Dados da contratada usados nos contratos e parâmetros das cobranças."}
+        acoes={
+          <nav aria-label="Cadastros do escritório" className="flex flex-wrap gap-2">
+            <Link href="/escritorio/carteiras" className={buttonVariants({ variant: "outline" })}>
+              <Wallet aria-hidden /> Carteiras
+            </Link>
+            <Link href="/escritorio/servicos-extras" className={buttonVariants({ variant: "outline" })}>
+              <Layers aria-hidden /> Serviços extras
+            </Link>
+          </nav>
+        }
+      />
       <FormularioEscritorio valores={valores} somenteLeitura={somenteLeitura} />
       <ModeloContrato caminho={e.modelo_contrato_path} somenteLeitura={somenteLeitura} />
     </div>

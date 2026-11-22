@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 
+import { Mensagem } from "@/components/mensagem";
 import { Button } from "@/components/ui/button";
 import { ROTULOS_REGIME } from "@/domain/rotulos";
 import { salvarCliente, type Resultado } from "./actions";
@@ -33,39 +34,39 @@ export function FormularioCliente({ id, valores, suspeitos, opcoesIndicacao, som
   const [estado, acao, pendente] = useActionState<Resultado, FormData>(salvarCliente, {});
   const campoSuspeito = (n: string) => suspeitos.includes(n);
   const classe = (n: string) =>
-    `block w-full rounded border px-3 py-2 ${campoSuspeito(n) ? "border-yellow-500 bg-yellow-100 text-foreground" : ""}`;
+    `campo w-full font-normal ${campoSuspeito(n) ? "campo-suspeito" : ""}`;
   return (
     <form action={acao} className="space-y-4">
       <input type="hidden" name="id" value={id ?? ""} />
-      <fieldset disabled={somenteLeitura} className="grid gap-4 sm:grid-cols-2">
+      <fieldset disabled={somenteLeitura} className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
         {CAMPOS.map((c) => (
-          <label key={c.nome} className={`space-y-1 text-sm ${c.larga ? "sm:col-span-2" : ""}`}>
-            <span>{c.rotulo}{campoSuspeito(c.nome) && " (conferir)"}</span>
+          <label key={c.nome} className={`space-y-1.5 text-sm font-medium ${c.larga ? "sm:col-span-2" : ""}`}>
+            <span>{c.rotulo}{campoSuspeito(c.nome) && <span className="font-semibold text-warning"> (conferir)</span>}</span>
             <input name={c.nome} defaultValue={valores[c.nome] ?? ""} required={c.nome === "razao_social"} className={classe(c.nome)} />
           </label>
         ))}
-        <label className="space-y-1 text-sm">
-          <span>Regime tributário</span>
+        <label className="space-y-1.5 text-sm font-medium">
+          <span>Regime tributário{campoSuspeito("regime") && <span className="font-semibold text-warning"> (conferir)</span>}</span>
           <select name="regime" defaultValue={valores.regime ?? ""} className={classe("regime")}>
             <option value="">Não informado</option>
             {Object.entries(ROTULOS_REGIME).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
           </select>
         </label>
-        <label className="space-y-1 text-sm">
+        <label className="space-y-1.5 text-sm font-medium">
           <span>Indicado por</span>
-          <select name="indicado_por" defaultValue={valores.indicado_por ?? ""} className="block w-full rounded border px-3 py-2">
+          <select name="indicado_por" defaultValue={valores.indicado_por ?? ""} className="campo w-full font-normal">
             <option value="">Ninguém</option>
             {opcoesIndicacao.map((o) => <option key={o.id} value={o.id}>{o.razao_social}</option>)}
           </select>
         </label>
-        <label className="space-y-1 text-sm sm:col-span-2">
+        <label className="space-y-1.5 text-sm font-medium sm:col-span-2">
           <span>Observações</span>
-          <textarea name="observacoes" rows={3} defaultValue={valores.observacoes ?? ""} className="block w-full rounded border px-3 py-2" />
+          <textarea name="observacoes" rows={3} defaultValue={valores.observacoes ?? ""} className="campo w-full font-normal" />
         </label>
       </fieldset>
       {!somenteLeitura && <Button type="submit" disabled={pendente}>{id ? "Salvar cliente" : "Criar cliente"}</Button>}
-      {estado.erro && <p role="alert" className="text-sm text-destructive">{estado.erro}</p>}
-      {estado.ok && <p role="status" className="text-sm text-muted-foreground">Salvo.</p>}
+      {estado.erro && <Mensagem tipo="erro">{estado.erro}</Mensagem>}
+      {estado.ok && <Mensagem tipo="ok">Salvo.</Mensagem>}
     </form>
   );
 }

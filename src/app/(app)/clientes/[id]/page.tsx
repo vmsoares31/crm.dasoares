@@ -1,5 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { TriangleAlert } from "lucide-react";
+
+import { CabecalhoPagina } from "@/components/cabecalho-pagina";
+import { SituacaoBadge } from "@/components/situacao-badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { listarCarteiras } from "@/db/carteiras";
 import { listarOpcoesIndicacao, obterCliente } from "@/db/clientes";
@@ -40,39 +44,47 @@ export default async function ClientePage({ params }: { params: Promise<{ id: st
   };
 
   return (
-    <div className="max-w-4xl space-y-8">
-      <div className="flex flex-wrap items-center gap-4">
-        <h1 className="text-2xl font-semibold">{c.razao_social}</h1>
-        <span className="rounded bg-muted px-2 py-0.5 text-xs">
-          {ROTULOS_SITUACAO_CLIENTE[c.situacao as keyof typeof ROTULOS_SITUACAO_CLIENTE]}
-        </span>
-        <Link href="/clientes" className="text-sm underline">Voltar</Link>
-      </div>
+    <div className="max-w-4xl space-y-6">
+      <CabecalhoPagina
+        titulo={c.razao_social}
+        voltar={{ href: "/clientes", rotulo: "Clientes" }}
+        acoes={c.situacao === "a_revisar" && podeEditar ? (
+          <ConfirmarCadastro clienteId={c.id} bloqueado={pendencias.includes("documento_invalido")} />
+        ) : undefined}
+      >
+        <SituacaoBadge situacao={c.situacao} rotulo={ROTULOS_SITUACAO_CLIENTE[c.situacao as keyof typeof ROTULOS_SITUACAO_CLIENTE]} />
+      </CabecalhoPagina>
 
-      {c.situacao === "a_revisar" && podeEditar && (
-        <ConfirmarCadastro clienteId={c.id} bloqueado={pendencias.includes("documento_invalido")} />
-      )}
-
-      {pendencias.length > 0 && (
-        <section className="space-y-1">
-          <h2 className="text-lg font-medium">Pendências ({pendencias.length})</h2>
-          <ul className="list-disc pl-5 text-sm">
-            {pendencias.map((p) => <li key={p}>{ROTULOS_PENDENCIA[p]}</li>)}
-          </ul>
+      {(pendencias.length > 0 || c.campos_suspeitos.length > 0) && (
+        <section className="space-y-2 rounded-xl border border-warning-border/60 bg-warning-soft px-5 py-4 text-sm">
+          {pendencias.length > 0 && (
+            <>
+              <h2 className="flex items-center gap-2 font-heading text-base font-bold">
+                <TriangleAlert className="size-4 text-warning" aria-hidden />
+                Pendências ({pendencias.length})
+              </h2>
+              <ul className="list-disc space-y-0.5 pl-6">
+                {pendencias.map((p) => <li key={p}>{ROTULOS_PENDENCIA[p]}</li>)}
+              </ul>
+            </>
+          )}
+          {c.campos_suspeitos.length > 0 && (
+            <p className="font-medium text-warning">
+              Campos para conferir (vindos da importação) estão destacados em amarelo no formulário.
+            </p>
+          )}
         </section>
       )}
 
-      {c.campos_suspeitos.length > 0 && (
-        <p className="rounded border border-yellow-500 bg-yellow-100 px-3 py-2 text-sm text-foreground">
-          Campos para conferir (vindos da importação) estão destacados em amarelo no formulário.
-        </p>
-      )}
-
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium">Cadastro</h2>
-        {!podeEditar && <p className="text-sm text-muted-foreground">Somente leitura.</p>}
-        <FormularioCliente id={c.id} valores={valores} suspeitos={c.campos_suspeitos} opcoesIndicacao={opcoes} somenteLeitura={!podeEditar} />
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle><h2>Cadastro</h2></CardTitle>
+          {!podeEditar && <CardDescription>Somente leitura.</CardDescription>}
+        </CardHeader>
+        <CardContent>
+          <FormularioCliente id={c.id} valores={valores} suspeitos={c.campos_suspeitos} opcoesIndicacao={opcoes} somenteLeitura={!podeEditar} />
+        </CardContent>
+      </Card>
 
       <Socios
         clienteId={c.id}
@@ -80,22 +92,25 @@ export default async function ClientePage({ params }: { params: Promise<{ id: st
         socios={c.socios.map((s) => ({ id: s.id, nome: s.nome, cpf: s.cpf, participacao: s.participacao, administrador: s.administrador }))}
       />
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-medium">Contrato</h2>
-        {k ? (
-          <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
-            <div><dt className="text-muted-foreground">Honorário</dt><dd>{k.honorario != null ? formatarBRL(k.honorario) : "—"}</dd></div>
-            <div><dt className="text-muted-foreground">Vencimento</dt><dd>{k.dia_vencimento != null ? `dia ${k.dia_vencimento}` : "—"}</dd></div>
-            <div><dt className="text-muted-foreground">Carteira</dt><dd>{carteira ?? "—"}</dd></div>
-            <div><dt className="text-muted-foreground">Tipo de cobrança</dt>
-              <dd>{k.tipo_cobranca ? ROTULOS_TIPO_COBRANCA[k.tipo_cobranca as keyof typeof ROTULOS_TIPO_COBRANCA] : "—"}</dd></div>
-            <div><dt className="text-muted-foreground">E-mail de cobrança</dt><dd>{k.email_cobranca ?? "—"}</dd></div>
-            <div><dt className="text-muted-foreground">Situação</dt><dd>{k.situacao}{k.legado ? " (legado)" : ""}</dd></div>
-          </dl>
-        ) : (
-          <p className="text-sm text-muted-foreground">Sem contrato. Use a edição em massa para cadastrar os dados de cobrança.</p>
+      <Card>
+        <CardHeader>
+          <CardTitle><h2>Contrato</h2></CardTitle>
+          {!k && <CardDescription>Sem contrato. Use a edição em massa para cadastrar os dados de cobrança.</CardDescription>}
+        </CardHeader>
+        {k && (
+          <CardContent>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm sm:grid-cols-3">
+              <div><dt className="text-xs font-medium text-muted-foreground">Honorário</dt><dd className="mt-0.5 font-heading text-base font-bold text-heading tabular-nums">{k.honorario != null ? formatarBRL(k.honorario) : "—"}</dd></div>
+              <div><dt className="text-xs font-medium text-muted-foreground">Vencimento</dt><dd className="mt-0.5 font-medium">{k.dia_vencimento != null ? `dia ${k.dia_vencimento}` : "—"}</dd></div>
+              <div><dt className="text-xs font-medium text-muted-foreground">Carteira</dt><dd className="mt-0.5 font-medium">{carteira ?? "—"}</dd></div>
+              <div><dt className="text-xs font-medium text-muted-foreground">Tipo de cobrança</dt>
+                <dd className="mt-0.5 font-medium">{k.tipo_cobranca ? ROTULOS_TIPO_COBRANCA[k.tipo_cobranca as keyof typeof ROTULOS_TIPO_COBRANCA] : "—"}</dd></div>
+              <div className="min-w-0"><dt className="text-xs font-medium text-muted-foreground">E-mail de cobrança</dt><dd className="mt-0.5 truncate font-medium">{k.email_cobranca ?? "—"}</dd></div>
+              <div><dt className="text-xs font-medium text-muted-foreground">Situação</dt><dd className="mt-0.5 font-medium">{k.situacao}{k.legado ? " (legado)" : ""}</dd></div>
+            </dl>
+          </CardContent>
         )}
-      </section>
+      </Card>
     </div>
   );
 }

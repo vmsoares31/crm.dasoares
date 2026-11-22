@@ -1,5 +1,5 @@
-import Link from "next/link";
-
+import { CabecalhoPagina } from "@/components/cabecalho-pagina";
+import { Card } from "@/components/ui/card";
 import { listarOpcoesIndicacao } from "@/db/clientes";
 import { exigirPermissaoPagina } from "@/lib/auth";
 import { FormularioCliente } from "../formulario-cliente";
@@ -9,11 +9,10 @@ export default async function NovoClientePage() {
   const opcoes = await listarOpcoesIndicacao();
   return (
     <div className="max-w-4xl space-y-6">
-      <div className="flex items-center gap-4">
-        <h1 className="text-2xl font-semibold">Novo cliente</h1>
-        <Link href="/clientes" className="text-sm underline">Voltar</Link>
-      </div>
-      <FormularioCliente valores={{}} suspeitos={[]} opcoesIndicacao={opcoes} somenteLeitura={false} />
+      <CabecalhoPagina titulo="Novo cliente" voltar={{ href: "/clientes", rotulo: "Clientes" }} />
+      <Card className="px-5">
+        <FormularioCliente valores={{}} suspeitos={[]} opcoesIndicacao={opcoes} somenteLeitura={false} />
+      </Card>
     </div>
   );
 }
