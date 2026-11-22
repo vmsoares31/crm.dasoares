@@ -35,9 +35,12 @@ describe("socioSchema", () => {
 });
 
 describe("linhaMassaSchema", () => {
-  const l = { clienteId: "x", regime: "", honorario: "R$ 1.234,50", dia_vencimento: "10", carteira_id: "", tipo_cobranca: "", email_cobranca: "" };
+  const l = { clienteId: "123e4567-e89b-42d3-a456-426614174000", regime: "", honorario: "R$ 1.234,50", dia_vencimento: "10", carteira_id: "", tipo_cobranca: "", email_cobranca: "" };
   it("converte honorário em centavos", () => {
     expect(linhaMassaSchema.parse(l).honorario).toBe(123450);
+  });
+  it("rejeita clienteId que não é UUID", () => {
+    expect(linhaMassaSchema.safeParse({ ...l, clienteId: "abc" }).success).toBe(false);
   });
   it("dia fora de 1–31", () => {
     expect(linhaMassaSchema.safeParse({ ...l, dia_vencimento: "32" }).success).toBe(false);

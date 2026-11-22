@@ -3,6 +3,7 @@ import "server-only";
 import type { Tables } from "@/db/database.types";
 import { pendenciasCadastro, type ClienteCompleto, type Pendencia } from "@/domain/completude";
 import { somenteDigitos } from "@/domain/documentos";
+import { buscarTodas } from "@/db/paginar";
 import { createServerClient } from "@/lib/supabase/server";
 
 export const POR_PAGINA = 50;
@@ -46,15 +47,23 @@ export async function listarClientes(f: FiltroClientes): Promise<{ linhas: Clien
   if (f.situacao) q = q.eq("situacao", f.situacao);
   if (porCarteira) q = q.eq("contratos.carteira_id", f.carteira!).neq("contratos.situacao", "encerrado");
 
-  if (!f.pendencias) q = q.range((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA - 1);
-
-  const { data, error, count } = await q;
-  if (error) throw new Error(`Falha ao listar clientes: ${error.message}`);
+  q = q.order("id");
+  let data: unknown[];
+  let count: number | null = null;
+  if (f.pendencias) {
+    // Pendências são calculadas em JS: busca todas as linhas (paginando o limite de 1000 do PostgREST).
+    data = await buscarTodas<unknown>((de, ate) => q.range(de, ate) as never);
+  } else {
+    const r = await q.range((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA - 1);
+    if (r.error) throw new Error(`Falha ao listar clientes: ${r.error.message}`);
+    data = r.data ?? [];
+    count = r.count;
+  }
 
   const { data: carteiras } = await supabase.from("carteiras").select("id, nome");
   const nomes = new Map((carteiras ?? []).map((c) => [c.id, c.nome]));
 
-  let linhas: ClienteLinha[] = ((data ?? []) as unknown as Bruto[]).map((b) => {
+  let linhas: ClienteLinha[] = (data as unknown as Bruto[]).map((b) => {
     const c = montar(b);
     return { ...c, pendencias: pendenciasCadastro(c), carteiraNome: c.contrato?.carteira_id ? (nomes.get(c.contrato.carteira_id) ?? null) : null };
   });
@@ -83,13 +92,17 @@ export async function obterCliente(id: string): Promise<ClienteCompleto | null> 
 
 export async function listarClientesParaMassa(): Promise<ClienteLinha[]> {
   const supabase = await createServerClient();
-  const { data, error } = await supabase
-    .from("clientes")
-    .select("*, socios(*), contratos(*)")
-    .in("situacao", ["ativo", "a_revisar"])
-    .order("razao_social");
-  if (error) throw new Error(`Falha ao listar clientes: ${error.message}`);
-  return ((data ?? []) as unknown as Bruto[]).map((b) => {
+  const data = await buscarTodas<unknown>(
+    (de, ate) =>
+      supabase
+        .from("clientes")
+        .select("*, socios(*), contratos(*)")
+        .in("situacao", ["ativo", "a_revisar"])
+        .order("razao_social")
+        .order("id")
+        .range(de, ate) as never,
+  );
+  return (data as Bruto[]).map((b) => {
     const c = montar(b);
     return { ...c, pendencias: pendenciasCadastro(c), carteiraNome: null };
   });
@@ -97,16 +110,19 @@ export async function listarClientesParaMassa(): Promise<ClienteLinha[]> {
 
 export async function listarOpcoesIndicacao(excluirId?: string): Promise<{ id: string; razao_social: string }[]> {
   const supabase = await createServerClient();
-  const { data, error } = await supabase.from("clientes").select("id, razao_social").order("razao_social");
-  if (error) throw new Error(`Falha ao listar clientes: ${error.message}`);
-  return (data ?? []).filter((c) => c.id !== excluirId);
+  const data = await buscarTodas<{ id: string; razao_social: string }>(
+    (de, ate) => supabase.from("clientes").select("id, razao_social").order("razao_social").order("id").range(de, ate) as never,
+  );
+  return data.filter((c) => c.id !== excluirId);
 }
 
 export async function resumoPendencias(): Promise<{ aRevisar: number; incompletos: number }> {
   const supabase = await createServerClient();
-  const { data, error } = await supabase.from("clientes").select("*, socios(*), contratos(*)").neq("situacao", "inativo");
-  if (error) throw new Error(`Falha ao calcular pendências: ${error.message}`);
-  const todos = ((data ?? []) as unknown as Bruto[]).map(montar);
+  const data = await buscarTodas<unknown>(
+    (de, ate) =>
+      supabase.from("clientes").select("*, socios(*), contratos(*)").neq("situacao", "inativo").order("id").range(de, ate) as never,
+  );
+  const todos = (data as Bruto[]).map(montar);
   return {
     aRevisar: todos.filter((c) => c.situacao === "a_revisar").length,
     incompletos: todos.filter((c) => pendenciasCadastro(c).length > 0).length,

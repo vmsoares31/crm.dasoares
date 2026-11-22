@@ -69,7 +69,7 @@ export type SocioEntrada = z.infer<typeof socioSchema>;
 
 /** Linha da edição em massa (campos como digitados). */
 export const linhaMassaSchema = z.object({
-  clienteId: z.string().min(1),
+  clienteId: z.uuid("Cliente inválido."),
   regime: regimeOpcional,
   honorario: texto
     .refine((s) => s === "" || /\d/.test(s), "Honorário inválido.")

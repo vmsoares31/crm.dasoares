@@ -52,9 +52,21 @@ export async function salvarEdicaoEmMassa(linhas: LinhaEntrada[]): Promise<Resul
     const { regime, honorario, dia_vencimento, carteira_id, tipo_cobranca, email_cobranca } = r.data;
     const contrato = { honorario, dia_vencimento, carteira_id, tipo_cobranca, email_cobranca };
     try {
-      const { error } = await supabase.from("clientes").update({ regime }).eq("id", clienteId);
-      if (error) throw new Error(error.message);
+      const { data: cli, error: erroCli } = await supabase
+        .from("clientes").select("situacao").eq("id", clienteId).maybeSingle();
+      if (erroCli) throw new Error(erroCli.message);
+      if (!cli || (cli.situacao !== "ativo" && cli.situacao !== "a_revisar")) {
+        erros.push({ clienteId, mensagem: "Cliente não encontrado, ou inativo." });
+        continue;
+      }
+      // Contrato primeiro, regime depois: se o regime falhar, o erro informa que o contrato já foi salvo.
       const k = await upsertContratoLegado(clienteId, contrato);
+      const { error } = await supabase.from("clientes").update({ regime }).eq("id", clienteId);
+      if (error) {
+        console.error(`[clientes] edicao em massa regime ${clienteId}:`, error.message);
+        erros.push({ clienteId, mensagem: "Contrato salvo, mas não foi possível salvar o regime. Tente novamente." });
+        continue;
+      }
       await registrarAuditoria("contrato.edicao_em_massa", "contratos", k.id, {
         cliente_id: clienteId, regime, ...contrato, criado: k.criado,
       });

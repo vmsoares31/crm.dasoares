@@ -74,6 +74,7 @@ export async function confirmarCadastro(clienteId: string): Promise<Resultado> {
   if (negado) return { erro: negado };
   const c = await obterCliente(clienteId);
   if (!c) return { erro: "Cliente não encontrado." };
+  if (c.situacao !== "a_revisar") return { erro: "Cadastro já confirmado ou cliente inativo." };
   if (pendenciasCadastro(c).includes("documento_invalido")) {
     return { erro: "Corrija o CPF/CNPJ do cliente antes de confirmar o cadastro." };
   }

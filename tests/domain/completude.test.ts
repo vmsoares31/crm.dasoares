@@ -43,6 +43,11 @@ describe("pendenciasCadastro", () => {
     c.documento = null;
     expect(pendenciasCadastro(c)).toContain("documento_invalido");
   });
+  it("honorário 0 é valor válido, não pendência", () => {
+    const c = completo();
+    c.contrato!.honorario = 0;
+    expect(pendenciasCadastro(c)).toEqual([]);
+  });
   it("sem regime", () => {
     const c = completo();
     c.regime = null;
@@ -59,7 +64,7 @@ describe("pendenciasCadastro", () => {
     c.contrato!.email_cobranca = null;
     expect(pendenciasCadastro(c)).toEqual([]);
   });
-  it("honorário 0 conta como pendente? não: 0 é valor", () => {
+  it("honorário nulo gera pendência de honorário", () => {
     const c = completo();
     c.contrato!.honorario = null;
     expect(pendenciasCadastro(c)).toEqual(["honorario"]);

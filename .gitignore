@@ -6,3 +6,4 @@ Empresas CRM.*
 tmp/
 .superpowers/
 *.tsbuildinfo
+.next-verify/
