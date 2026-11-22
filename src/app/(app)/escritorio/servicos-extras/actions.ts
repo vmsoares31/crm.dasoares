@@ -23,11 +23,11 @@ export async function salvarServicoExtra(_: Resultado, dados: FormData): Promise
   const supabase = await createServerClient();
   if (id) {
     const { error } = await supabase.from("servicos_extras").update({ ...r.data, ativo }).eq("id", id);
-    if (error) return { erro: `Falha ao salvar: ${error.message}` };
+    if (error) return { erro: (console.error("[escritorio]", error.message), "Não foi possível concluir a operação. Tente novamente.") };
     await registrarAuditoria("servico_extra.atualizar", "servicos_extras", id, { ...r.data, ativo });
   } else {
     const { data, error } = await supabase.from("servicos_extras").insert(r.data).select("id").single();
-    if (error || !data) return { erro: `Falha ao criar: ${error?.message}` };
+    if (error || !data) return { erro: (console.error("[escritorio]", error?.message), "Não foi possível concluir a operação. Tente novamente.") };
     await registrarAuditoria("servico_extra.criar", "servicos_extras", data.id, r.data);
   }
   revalidatePath("/escritorio/servicos-extras");

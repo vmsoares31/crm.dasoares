@@ -23,11 +23,11 @@ export async function salvarCarteira(_: Resultado, dados: FormData): Promise<Res
   const supabase = await createServerClient();
   if (id) {
     const { error } = await supabase.from("carteiras").update({ ...r.data, ativa }).eq("id", id);
-    if (error) return { erro: error.code === "23505" ? "Já existe uma carteira com esse nome." : `Falha ao salvar: ${error.message}` };
+    if (error) return { erro: error.code === "23505" ? "Já existe uma carteira com esse nome." : (console.error("[escritorio]", error.message), "Não foi possível concluir a operação. Tente novamente.") };
     await registrarAuditoria("carteira.atualizar", "carteiras", id, { ...r.data, ativa });
   } else {
     const { data, error } = await supabase.from("carteiras").insert(r.data).select("id").single();
-    if (error || !data) return { erro: error?.code === "23505" ? "Já existe uma carteira com esse nome." : `Falha ao criar: ${error?.message}` };
+    if (error || !data) return { erro: error?.code === "23505" ? "Já existe uma carteira com esse nome." : (console.error("[escritorio]", error?.message), "Não foi possível concluir a operação. Tente novamente.") };
     await registrarAuditoria("carteira.criar", "carteiras", data.id, r.data);
   }
   revalidatePath("/escritorio/carteiras");

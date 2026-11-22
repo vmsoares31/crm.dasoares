@@ -9,6 +9,21 @@ import { createServerClient } from "@/lib/supabase/server";
 
 export type Resultado = { ok?: boolean; erro?: string };
 
+const ROTULOS: Record<string, string> = {
+  razao_social: "Razão social", cnpj: "CNPJ", logradouro: "Logradouro", numero: "Número",
+  complemento: "Complemento", bairro: "Bairro", cidade: "Cidade", uf: "UF", cep: "CEP",
+  telefone: "Telefone", email: "E-mail", inscricao_municipal: "Inscrição municipal",
+  responsavel_tecnico: "Responsável técnico", crc: "CRC", cidade_foro: "Cidade do foro",
+  multa_pct: "Multa (%)", juros_mes_pct: "Juros ao mês (%)", nome_cobranca: "Nome da cobrança",
+  dia_vencimento_padrao: "Dia de vencimento padrão", indicacao_pct: "Benefício de indicação (%)",
+  notificar_em: "Lembretes do Cora",
+};
+
+function falha(contexto: string, detalhe: string): string {
+  console.error(`[escritorio] ${contexto}: ${detalhe}`);
+  return "Não foi possível concluir a operação. Tente novamente.";
+}
+
 const MAX_MODELO = 5 * 1024 * 1024;
 const MIME_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
@@ -30,7 +45,7 @@ export async function salvarEscritorio(_: Resultado, dados: FormData): Promise<R
   const bruto = Object.fromEntries([...dados.entries()].filter(([, v]) => typeof v === "string"));
   const r = escritorioSchema.safeParse(bruto);
   if (!r.success) {
-    const msg = r.error.issues.map((i) => `${String(i.path[0] ?? "")}: ${i.message}`).join(" · ");
+    const msg = r.error.issues.map((i) => `${ROTULOS[String(i.path[0])] ?? String(i.path[0] ?? "")}: ${i.message}`).join(" · ");
     return { erro: msg };
   }
 
@@ -39,7 +54,7 @@ export async function salvarEscritorio(_: Resultado, dados: FormData): Promise<R
   if (!atual) return { erro: "Cadastro do escritório não encontrado." };
 
   const { error } = await supabase.from("escritorio").update(r.data).eq("id", atual.id);
-  if (error) return { erro: `Falha ao salvar: ${error.message}` };
+  if (error) return { erro: falha("salvar", error.message) };
 
   await registrarAuditoria("escritorio.atualizar", "escritorio", atual.id, r.data);
   revalidatePath("/escritorio");
@@ -64,12 +79,12 @@ export async function enviarModelo(_: Resultado, dados: FormData): Promise<Resul
   const { error: erroUp } = await supabase.storage
     .from("contratos")
     .upload(caminho, arquivo, { contentType: MIME_DOCX, upsert: false });
-  if (erroUp) return { erro: `Falha ao enviar o arquivo: ${erroUp.message}` };
+  if (erroUp) return { erro: falha("upload", erroUp.message) };
 
   const { error } = await supabase.from("escritorio").update({ modelo_contrato_path: caminho }).eq("id", atual.id);
   if (error) {
     await supabase.storage.from("contratos").remove([caminho]);
-    return { erro: `Falha ao salvar o modelo: ${error.message}` };
+    return { erro: falha("salvar modelo", error.message) };
   }
   if (atual.modelo_contrato_path) {
     await supabase.storage.from("contratos").remove([atual.modelo_contrato_path]);
@@ -87,7 +102,7 @@ export async function restaurarModeloPadrao(): Promise<Resultado> {
   const { data: atual } = await supabase.from("escritorio").select("id, modelo_contrato_path").limit(1).single();
   if (!atual) return { erro: "Cadastro do escritório não encontrado." };
   const { error } = await supabase.from("escritorio").update({ modelo_contrato_path: null }).eq("id", atual.id);
-  if (error) return { erro: `Falha ao restaurar: ${error.message}` };
+  if (error) return { erro: falha("restaurar", error.message) };
   if (atual.modelo_contrato_path) {
     await supabase.storage.from("contratos").remove([atual.modelo_contrato_path]);
   }
