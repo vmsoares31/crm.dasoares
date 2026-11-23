@@ -79,3 +79,16 @@ export function reajustarTabelaExtras(
 ): { id: string; de: Centavos; para: Centavos }[] {
   return servicos.map((s) => ({ id: s.id, de: s.valor, para: arredondarParaCimaReal(reajustar(s.valor, pct)) }));
 }
+
+/** Contrato só pode ser reajustado se não encerrado e com honorário definido. */
+export function contratoElegivel(situacao: string, honorario: Centavos | null): boolean {
+  return situacao !== "encerrado" && honorario !== null;
+}
+
+/** Novo valor deve ficar entre o atual e 3x o atual (e ser inteiro seguro). Retorna a mensagem de erro ou null. */
+export function validarLimiteReajuste(atual: Centavos, novo: Centavos, rotulo: string): string | null {
+  if (!Number.isSafeInteger(novo) || novo <= 0) return `${rotulo}: valor inválido.`;
+  if (novo < atual) return `${rotulo}: o novo valor não pode ser menor que o atual.`;
+  if (novo > atual * 3) return `${rotulo}: o novo valor excede 3 vezes o atual.`;
+  return null;
+}

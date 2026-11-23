@@ -80,7 +80,7 @@ function AbaContratos({ contratos }: { contratos: Contrato[] }) {
     <Card className="space-y-4 p-5">
       <div className="flex flex-wrap items-end gap-3">
         <label className="space-y-1.5 text-sm font-medium"><span>Percentual de reajuste (%)</span>
-          <input value={pctTexto} onChange={(e) => setPctTexto(e.target.value)} inputMode="decimal" placeholder="4,75" className="campo w-32 font-normal tabular-nums" /></label>
+          <input value={pctTexto} onChange={(e) => { setPctTexto(e.target.value); setEditados({}); }} inputMode="decimal" placeholder="4,75" className="campo w-32 font-normal tabular-nums" /></label>
         <Button disabled={pendente || previa.length === 0 || selecionados.size === 0} onClick={() => aplicar([...selecionados])}>
           Aplicar aos selecionados ({selecionados.size})
         </Button>

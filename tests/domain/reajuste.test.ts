@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parsePercentual, previaReajusteContratos, reajustarTabelaExtras, reproporcionarParcelas } from "@/domain/reajuste";
+import { contratoElegivel, parsePercentual, validarLimiteReajuste, previaReajusteContratos, reajustarTabelaExtras, reproporcionarParcelas } from "@/domain/reajuste";
 import type { ParcelaAdicional } from "@/domain/tipos";
 
 const p = (mes: number, valor: number): ParcelaAdicional => ({ mes, valor, forma: "junto_mensalidade", dia: null });
@@ -61,5 +61,27 @@ describe("parsePercentual", () => {
     expect(parsePercentual("abc")).toBeNull();
     expect(parsePercentual("0")).toBeNull();
     expect(parsePercentual("150")).toBeNull();
+  });
+});
+
+describe("contratoElegivel", () => {
+  it("exige não encerrado e honorário", () => {
+    expect(contratoElegivel("fechado", 100)).toBe(true);
+    expect(contratoElegivel("encerrado", 100)).toBe(false);
+    expect(contratoElegivel("fechado", null)).toBe(false);
+  });
+});
+
+describe("validarLimiteReajuste", () => {
+  it("aceita de 1x a 3x", () => {
+    expect(validarLimiteReajuste(1000, 1000, "H")).toBeNull();
+    expect(validarLimiteReajuste(1000, 3000, "H")).toBeNull();
+  });
+  it("rejeita menor, acima de 3x, zero e não seguro", () => {
+    expect(validarLimiteReajuste(1000, 999, "H")).not.toBeNull();
+    expect(validarLimiteReajuste(1000, 3001, "H")).not.toBeNull();
+    expect(validarLimiteReajuste(1000, 0, "H")).not.toBeNull();
+    expect(validarLimiteReajuste(1000, Number.MAX_SAFE_INTEGER + 2, "H")).not.toBeNull();
+    expect(validarLimiteReajuste(1000, 1000.5, "H")).not.toBeNull();
   });
 });

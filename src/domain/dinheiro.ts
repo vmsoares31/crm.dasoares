@@ -18,7 +18,9 @@ export function formatarValorCora(c: Centavos): string {
 
 export function parseBRL(s: string): Centavos {
   const neg = /^\s*-/.test(s);
-  const limpo = s.replace(/[^\d,]/g, "");
+  // Um único ponto, sem vírgula, seguido de 1–2 dígitos é separador decimal ("230.50").
+  const decimalPonto = /^\D*(\d+)\.(\d{1,2})\s*$/.exec(s);
+  const limpo = !s.includes(",") && decimalPonto ? `${decimalPonto[1]},${decimalPonto[2]}` : s.replace(/[^\d,]/g, "");
   const [int = "0", dec = ""] = limpo.split(",");
   const cents = Number(int || "0") * 100 + Number((dec + "00").slice(0, 2));
   return neg ? -cents : cents;

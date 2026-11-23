@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { obterContrato } from "@/db/contratos";
 import { listarServicosExtras } from "@/db/servicos-extras";
-import { parsePercentual, reajustarTabelaExtras, reproporcionarParcelas } from "@/domain/reajuste";
+import { contratoElegivel, parsePercentual, reajustarTabelaExtras, reproporcionarParcelas, validarLimiteReajuste } from "@/domain/reajuste";
 import { registrarAuditoria } from "@/lib/auditoria";
 import { exigirPermissao } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
@@ -39,22 +39,34 @@ export async function aplicarReajusteContratos(pctTexto: string, itens: ItemReaj
   const motivo = `Reajuste anual ${String(pct).replace(".", ",")}%`;
 
   for (const it of itens) {
-    const valido = UUID.test(it.contratoId) && Number.isInteger(it.honorarioPara) && it.honorarioPara > 0
-      && Number.isInteger(it.parcelaPara) && it.parcelaPara >= 0;
-    if (!valido) { falhas.push({ id: String(it.contratoId), nome: String(it.contratoId), erro: "Valores inválidos." }); continue; }
+    if (typeof it.contratoId !== "string" || !UUID.test(it.contratoId)) {
+      falhas.push({ id: String(it.contratoId), nome: "Contrato desconhecido", erro: "Identificador inválido." });
+      continue;
+    }
+    let nome = "Contrato desconhecido";
     try {
       const c = await obterContrato(it.contratoId);
-      if (!c) { falhas.push({ id: it.contratoId, nome: it.contratoId, erro: "Contrato não encontrado." }); continue; }
-      const nome = c.cliente.razao_social;
-      if (c.situacao === "encerrado") { falhas.push({ id: c.id, nome, erro: "Contrato encerrado." }); continue; }
+      if (!c) { falhas.push({ id: it.contratoId, nome, erro: "Contrato não encontrado." }); continue; }
+      nome = c.cliente.razao_social;
+      if (!contratoElegivel(c.situacao, c.honorario)) {
+        falhas.push({ id: c.id, nome, erro: c.situacao === "encerrado" ? "Contrato encerrado." : "Contrato sem honorário definido." });
+        continue;
+      }
+      const temParcelas = c.parcelas.length > 0;
+      // Sem linhas de parcela, o total fica como está (ignora o valor enviado).
+      const parcelaPara = temParcelas ? it.parcelaPara : c.parcela_adicional_total;
+      const erroLimite =
+        validarLimiteReajuste(c.honorario as number, it.honorarioPara, "Honorário")
+        ?? (temParcelas ? validarLimiteReajuste(c.parcela_adicional_total, parcelaPara, "Parcela adicional") : null);
+      if (erroLimite) { falhas.push({ id: c.id, nome, erro: erroLimite }); continue; }
       const parcelas = reproporcionarParcelas(
         c.parcelas.map((p) => ({ mes: p.mes, valor: p.valor, forma: p.forma as "junto_mensalidade" | "data_propria", dia: p.dia })),
-        it.parcelaPara,
+        parcelaPara,
       );
       const campos = {
         situacao: c.situacao, honorario: it.honorarioPara, dia_vencimento: c.dia_vencimento, data_inicio: c.data_inicio,
         carteira_id: c.carteira_id, tipo_cobranca: c.tipo_cobranca, email_cobranca: c.email_cobranca,
-        parcela_adicional_total: it.parcelaPara, legado: c.legado, encerrado_em: c.encerrado_em,
+        parcela_adicional_total: parcelaPara, legado: c.legado, encerrado_em: c.encerrado_em,
       };
       const { error } = await supabase.rpc("salvar_contrato", { p_contrato_id: c.id, p_campos: campos, p_parcelas: parcelas.map((x) => ({ ...x })), p_motivo: motivo });
       if (error) {
@@ -66,14 +78,14 @@ export async function aplicarReajusteContratos(pctTexto: string, itens: ItemReaj
       try {
         await registrarAuditoria("contrato.reajuste", "contratos", c.id, {
           pct, honorario_de: c.honorario, honorario_para: it.honorarioPara,
-          parcela_de: c.parcela_adicional_total, parcela_para: it.parcelaPara,
+          parcela_de: c.parcela_adicional_total, parcela_para: parcelaPara,
         });
       } catch (e) {
         console.error("[reajuste] auditoria", c.id, e);
       }
     } catch (e) {
       console.error("[reajuste] contrato", it.contratoId, e);
-      falhas.push({ id: it.contratoId, nome: it.contratoId, erro: MSG });
+      falhas.push({ id: it.contratoId, nome, erro: MSG });
     }
   }
   revalidatePath("/contratos");
