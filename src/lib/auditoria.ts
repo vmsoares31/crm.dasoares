@@ -11,7 +11,7 @@ import { createServerClient } from "@/lib/supabase/server";
 export async function registrarAuditoria(
   acao: string,
   entidade: string,
-  entidadeId: string,
+  entidadeId: string | null,
   dados?: object,
 ): Promise<void> {
   const supabase = await createServerClient();

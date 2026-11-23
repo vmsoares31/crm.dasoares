@@ -18,7 +18,11 @@ export function FormularioExtra({ clientes, servicos, competenciaPadrao, dataPad
   const [estado, acao, pendente] = useActionState<Resultado, FormData>(
     async (anterior, dados) => {
       const r = await lancarExtra(anterior, dados);
-      if (r.ok) formRef.current?.reset();
+      if (r.ok) {
+        formRef.current?.reset();
+        setDescricao("");
+        setValor("");
+      }
       return r;
     },
     {},

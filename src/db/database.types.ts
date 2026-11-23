@@ -1114,6 +1114,23 @@ export type Database = {
       }
     }
     Functions: {
+      cancelar_cobranca_prevista: {
+        Args: { p_cobranca_id: string; p_motivo: string }
+        Returns: undefined
+      }
+      editar_cobranca: {
+        Args: { p_cobranca_id: string; p_descricao: string; p_itens: Json }
+        Returns: undefined
+      }
+      gravar_competencia: {
+        Args: {
+          p_clientes?: string[]
+          p_cobrancas: Json
+          p_competencia: string
+          p_regerar: boolean
+        }
+        Returns: Json
+      }
       salvar_contrato: {
         Args: {
           p_campos: Json
