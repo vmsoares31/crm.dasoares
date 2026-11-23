@@ -2,6 +2,18 @@
 -- SECURITY INVOKER: as políticas RLS do chamador continuam valendo.
 -- As regras espelham src/domain/indicacao.ts (cobrancaQueLibera, creditoDaIndicacao; testadas
 -- em tests/domain/indicacao.test.ts).
+--
+-- Concorrência (ordem de travas, sempre nesta ordem, nunca o inverso):
+--   1. linhas de cobranças (FOR UPDATE em baixa/cancelamento; DELETE na regeração)
+--   2. linha do cliente indicado: FOR SHARE em registrar_baixa, cancelar_cobranca e
+--      gravar_competencia (antes de procurar a indicação); FOR UPDATE em registrar_indicacao
+--   3. linha da indicação (FOR UPDATE em reavaliar_credito_indicacao)
+--   registrar_indicacao não trava cobranças (só lê) e trava apenas a indicação que acabou de
+--   criar, então não há ciclo. A trava do cliente (2) serializa "registrar indicação" com
+--   "baixa/cancelamento/regeração" do mesmo cliente: quem vier depois enxerga o commit do
+--   outro (READ COMMITTED: cada comando seguinte usa um snapshot novo) e a liberação não se
+--   perde. Várias FOR SHARE simultâneas não conflitam entre si; a indicação (3) serializa as
+--   reavaliações.
 
 -- ---------------------------------------------------------------------------
 -- reavaliar_credito_indicacao(indicacao)
@@ -198,6 +210,8 @@ begin
    where id = p_cobranca_id;
 
   if v_situacao = 'paga' then
+    -- trava (2): espera um registrar_indicacao em andamento deste cliente (ver cabeçalho)
+    perform 1 from public.clientes where id = v_cob.cliente_id for share;
     select * into v_ind from public.indicacoes where indicado_id = v_cob.cliente_id;
     if found then
       v_credito := public.reavaliar_credito_indicacao(v_ind.id);
@@ -274,6 +288,8 @@ begin
     values (v_cob.cliente_id, 'estornado', v_estorno, p_cobranca_id);
   end if;
 
+  -- trava (2): espera um registrar_indicacao em andamento deste cliente (ver cabeçalho)
+  perform 1 from public.clientes where id = v_cob.cliente_id for share;
   select id into v_indicacao from public.indicacoes where indicado_id = v_cob.cliente_id;
   if found then
     perform public.reavaliar_credito_indicacao(v_indicacao);
@@ -285,3 +301,137 @@ $$;
 
 revoke all on function public.cancelar_cobranca(uuid, text) from public, anon;
 grant execute on function public.cancelar_cobranca(uuid, text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- gravar_competencia (0007): mesma assinatura, validações, comportamento e retorno.
+-- Novo: depois de apagar (regerar) e inserir, reavalia a liberação do crédito das indicações
+-- cujos indicados tiveram cobranças apagadas.
+-- ---------------------------------------------------------------------------
+create or replace function public.gravar_competencia(
+  p_competencia text,
+  p_regerar boolean,
+  p_cobrancas jsonb,
+  p_clientes uuid[] default null
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_removidas int := 0;
+  v_inseridas int := 0;
+  v_cob jsonb;
+  v_item jsonb;
+  v_id uuid;
+  v_cliente uuid;
+  v_total bigint;
+  v_soma bigint;
+  v_credito bigint;
+  v_saldo bigint;
+  v_n int;
+  v_clientes_removidos uuid[] := '{}';
+  v_indicacao uuid;
+begin
+  if p_competencia is null or p_competencia !~ '^[0-9]{4}-(0[1-9]|1[0-2])$' then
+    raise exception 'Competência inválida.' using errcode = '22023';
+  end if;
+
+  if p_regerar then
+    update public.lancamentos_extras e
+       set situacao = 'pendente', cobranca_id = null
+      from public.cobrancas c
+     where e.cobranca_id = c.id
+       and c.competencia = p_competencia
+       and c.situacao in ('prevista', 'quitada_por_credito')
+       and (p_clientes is null or c.cliente_id = any (p_clientes));
+
+    with removidas as (
+      delete from public.cobrancas c
+       where c.competencia = p_competencia
+         and c.situacao in ('prevista', 'quitada_por_credito')
+         and (p_clientes is null or c.cliente_id = any (p_clientes))
+      returning c.cliente_id
+    )
+    select count(*)::int, coalesce(array_agg(distinct cliente_id), '{}')
+      into v_removidas, v_clientes_removidos
+      from removidas;
+  end if;
+
+  for v_cob in select * from jsonb_array_elements(coalesce(p_cobrancas, '[]'::jsonb)) loop
+    v_cliente := (v_cob->>'cliente_id')::uuid;
+    v_total := (v_cob->>'total')::bigint;
+    v_credito := coalesce((v_cob->>'credito_usado')::bigint, 0);
+
+    if p_clientes is not null and not (v_cliente = any (p_clientes)) then
+      raise exception 'Cobrança fora do escopo informado.' using errcode = '22023';
+    end if;
+    if v_cob->>'situacao' not in ('prevista', 'quitada_por_credito') then
+      raise exception 'Situação inicial inválida.' using errcode = '22023';
+    end if;
+    select coalesce(sum((x->>'valor')::bigint), 0) into v_soma
+      from jsonb_array_elements(coalesce(v_cob->'itens', '[]'::jsonb)) x;
+    if v_soma <> v_total then
+      raise exception 'Total da cobrança não confere com os itens.' using errcode = '22023';
+    end if;
+
+    insert into public.cobrancas (cliente_id, contrato_id, competencia, origem, parcela_id, vencimento,
+                                  total, situacao, descricao)
+    values (v_cliente, (v_cob->>'contrato_id')::uuid, p_competencia, v_cob->>'origem',
+            (v_cob->>'parcela_id')::uuid, (v_cob->>'vencimento')::date, v_total,
+            v_cob->>'situacao', coalesce(v_cob->>'descricao', ''))
+    returning id into v_id;
+
+    for v_item in select * from jsonb_array_elements(coalesce(v_cob->'itens', '[]'::jsonb)) loop
+      insert into public.cobranca_itens (cobranca_id, tipo, descricao, valor, ref_id)
+      values (v_id, v_item->>'tipo', v_item->>'descricao', (v_item->>'valor')::bigint, (v_item->>'ref_id')::uuid);
+
+      if v_item->>'tipo' = 'extra' and v_item->>'ref_id' is not null then
+        update public.lancamentos_extras
+           set situacao = 'incluido', cobranca_id = v_id
+         where id = (v_item->>'ref_id')::uuid
+           and cliente_id = v_cliente
+           and competencia = p_competencia
+           and situacao = 'pendente';
+        get diagnostics v_n = row_count;
+        if v_n = 0 then
+          raise exception 'Um extra deixou de estar pendente durante a operação. Tente novamente.'
+            using errcode = '40001';
+        end if;
+      end if;
+    end loop;
+
+    if v_credito > 0 then
+      insert into public.creditos_movimentos (cliente_id, tipo, valor, cobranca_id)
+      values (v_cliente, 'usado', v_credito, v_id);
+
+      select coalesce(sum(case when tipo in ('liberado', 'estornado') then valor
+                               when tipo = 'usado' then -valor else 0 end), 0)
+        into v_saldo
+        from public.creditos_movimentos where cliente_id = v_cliente;
+      if v_saldo < 0 then
+        raise exception 'Saldo de crédito insuficiente. Tente novamente.' using errcode = '40001';
+      end if;
+    end if;
+
+    v_inseridas := v_inseridas + 1;
+  end loop;
+
+  -- Reavalia a liberação do crédito dos indicados que perderam cobranças na regeração: uma
+  -- cobrança apagada podia ser a "primeira" na frente de outra já paga. Feito depois das
+  -- inserções, para que uma cobrança regerada no lugar da apagada continue bloqueando.
+  if cardinality(v_clientes_removidos) > 0 then
+    -- trava (2), em ordem de id (ver cabeçalho)
+    perform 1 from public.clientes where id = any (v_clientes_removidos) order by id for share;
+    for v_indicacao in
+      select i.id from public.indicacoes i where i.indicado_id = any (v_clientes_removidos) order by i.id
+    loop
+      perform public.reavaliar_credito_indicacao(v_indicacao);
+    end loop;
+  end if;
+
+  return jsonb_build_object('inseridas', v_inseridas, 'removidas', v_removidas);
+end;
+$$;
+
+revoke all on function public.gravar_competencia(text, boolean, jsonb, uuid[]) from public, anon;
+grant execute on function public.gravar_competencia(text, boolean, jsonb, uuid[]) to authenticated;
