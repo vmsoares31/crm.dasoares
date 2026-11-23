@@ -7,3 +7,4 @@ tmp/
 .superpowers/
 *.tsbuildinfo
 .next-verify/
+.playwright-mcp/
