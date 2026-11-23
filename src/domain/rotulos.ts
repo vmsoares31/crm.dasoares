@@ -1,4 +1,4 @@
-import type { Regime, SituacaoCliente, TipoCobranca } from "./tipos";
+import type { Regime, SituacaoCliente, SituacaoContrato, TipoCobranca } from "./tipos";
 
 export const ROTULOS_REGIME: Record<Regime, string> = {
   mei: "MEI",
@@ -18,4 +18,10 @@ export const ROTULOS_SITUACAO_CLIENTE: Record<SituacaoCliente, string> = {
   a_revisar: "A revisar",
   ativo: "Ativo",
   inativo: "Inativo",
+};
+
+export const ROTULOS_SITUACAO_CONTRATO: Record<SituacaoContrato, string> = {
+  em_negociacao: "Em negociação",
+  fechado: "Fechado",
+  encerrado: "Encerrado",
 };

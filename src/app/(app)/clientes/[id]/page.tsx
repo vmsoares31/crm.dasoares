@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TriangleAlert } from "lucide-react";
 
@@ -15,6 +16,7 @@ import { ROTULOS_SITUACAO_CLIENTE, ROTULOS_TIPO_COBRANCA } from "@/domain/rotulo
 import { usuarioAtual } from "@/lib/auth";
 import { FormularioCliente } from "../formulario-cliente";
 import { ConfirmarCadastro } from "./confirmar-cadastro";
+import { CriarContrato } from "./criar-contrato";
 import { Socios } from "./socios";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -27,6 +29,7 @@ export default async function ClientePage({ params }: { params: Promise<{ id: st
 
   const usuario = await usuarioAtual();
   const podeEditar = !!usuario && pode(usuario.permissoes, "clientes.editar");
+  const podeEditarContrato = !!usuario && pode(usuario.permissoes, "contratos.editar");
   const [opcoes, carteiras] = await Promise.all([listarOpcoesIndicacao(id), listarCarteiras()]);
   const pendencias = pendenciasCadastro(c);
   const k = c.contrato;
@@ -95,10 +98,11 @@ export default async function ClientePage({ params }: { params: Promise<{ id: st
       <Card>
         <CardHeader>
           <CardTitle><h2>Contrato</h2></CardTitle>
-          {!k && <CardDescription>Sem contrato. Use a edição em massa para cadastrar os dados de cobrança.</CardDescription>}
+          {!k && <CardDescription>Sem contrato vigente.</CardDescription>}
         </CardHeader>
+        {!k && podeEditarContrato && <CardContent><CriarContrato clienteId={c.id} /></CardContent>}
         {k && (
-          <CardContent>
+          <CardContent className="space-y-4">
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm sm:grid-cols-3">
               <div><dt className="text-xs font-medium text-muted-foreground">Honorário</dt><dd className="mt-0.5 font-heading text-base font-bold text-heading tabular-nums">{k.honorario != null ? formatarBRL(k.honorario) : "—"}</dd></div>
               <div><dt className="text-xs font-medium text-muted-foreground">Vencimento</dt><dd className="mt-0.5 font-medium">{k.dia_vencimento != null ? `dia ${k.dia_vencimento}` : "—"}</dd></div>
@@ -108,6 +112,7 @@ export default async function ClientePage({ params }: { params: Promise<{ id: st
               <div className="min-w-0"><dt className="text-xs font-medium text-muted-foreground">E-mail de cobrança</dt><dd className="mt-0.5 truncate font-medium">{k.email_cobranca ?? "—"}</dd></div>
               <div><dt className="text-xs font-medium text-muted-foreground">Situação</dt><dd className="mt-0.5 font-medium">{k.situacao}{k.legado ? " (legado)" : ""}</dd></div>
             </dl>
+            <Link href={`/contratos/${k.id}`} className="link inline-block text-sm">Contrato</Link>
           </CardContent>
         )}
       </Card>

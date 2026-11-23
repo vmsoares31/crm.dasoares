@@ -43,3 +43,71 @@ export async function upsertContratoLegado(
   if (error || !data) throw new Error(`Falha ao criar contrato: ${error?.message}`);
   return { id: data.id, criado: true };
 }
+
+export type ParcelaRow = Tables<"parcelas_adicionais">;
+export type HistoricoRow = Tables<"historico_valores">;
+export type ClienteResumo = { id: string; razao_social: string; situacao: string; email: string | null };
+export type ContratoDetalhe = Contrato & {
+  cliente: ClienteResumo;
+  parcelas: ParcelaRow[];
+  historico: HistoricoRow[];
+};
+
+export const CONTRATOS_POR_PAGINA = 50;
+
+export async function obterContrato(id: string): Promise<ContratoDetalhe | null> {
+  const supabase = await createServerClient();
+  const { data, error } = await supabase
+    .from("contratos")
+    .select("*, cliente:clientes(id, razao_social, situacao, email), parcelas:parcelas_adicionais(*), historico:historico_valores(*)")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`Falha ao obter contrato: ${error.message}`);
+  if (!data) return null;
+  const b = data as unknown as ContratoDetalhe;
+  return {
+    ...b,
+    parcelas: [...(b.parcelas ?? [])].sort((x, y) => x.mes - y.mes),
+    historico: [...(b.historico ?? [])].sort((x, y) => y.criado_em.localeCompare(x.criado_em)),
+  };
+}
+
+/** Contrato vigente (não encerrado) do cliente, se houver. */
+export async function contratoVigenteDoCliente(clienteId: string): Promise<string | null> {
+  const supabase = await createServerClient();
+  const { data, error } = await supabase
+    .from("contratos").select("id").eq("cliente_id", clienteId).neq("situacao", "encerrado").maybeSingle();
+  if (error) throw new Error(`Falha ao buscar contrato: ${error.message}`);
+  return data?.id ?? null;
+}
+
+export type FiltroContratos = {
+  busca?: string;
+  situacao?: string;
+  carteira?: string;
+  legado?: string; // "sim" ou "nao"
+  pagina?: number;
+};
+
+export type ContratoLinha = Contrato & { cliente: { id: string; razao_social: string }; carteiraNome: string | null };
+
+export async function listarContratos(f: FiltroContratos): Promise<{ linhas: ContratoLinha[]; total: number }> {
+  const supabase = await createServerClient();
+  const pagina = Math.max(1, f.pagina ?? 1);
+  let q = supabase
+    .from("contratos")
+    .select("*, cliente:clientes!inner(id, razao_social), carteira:carteiras(nome)", { count: "exact" })
+    .order("razao_social", { referencedTable: "clientes" })
+    .order("id");
+  const busca = (f.busca ?? "").trim().replace(/[,()%*\\]/g, " ").trim();
+  if (busca) q = q.ilike("clientes.razao_social", `%${busca}%`);
+  if (f.situacao) q = q.eq("situacao", f.situacao);
+  if (f.carteira) q = q.eq("carteira_id", f.carteira);
+  if (f.legado === "sim") q = q.eq("legado", true);
+  if (f.legado === "nao") q = q.eq("legado", false);
+  const { data, count, error } = await q.range((pagina - 1) * CONTRATOS_POR_PAGINA, pagina * CONTRATOS_POR_PAGINA - 1);
+  if (error) throw new Error(`Falha ao listar contratos: ${error.message}`);
+  const linhas = ((data ?? []) as unknown as (Contrato & { cliente: { id: string; razao_social: string }; carteira: { nome: string } | null })[])
+    .map(({ carteira, ...k }) => ({ ...k, carteiraNome: carteira?.nome ?? null }));
+  return { linhas, total: count ?? 0 };
+}
