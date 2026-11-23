@@ -18,6 +18,8 @@ const ROTULOS: Record<string, string> = {
   encerrado_em: "Data de encerramento", parcelas: "Parcelas",
 };
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function falha(contexto: string, detalhe: string): string {
   console.error(`[contratos] ${contexto}: ${detalhe}`);
   return "Não foi possível concluir a operação. Tente novamente.";
@@ -38,12 +40,20 @@ async function autorizar(): Promise<string | null> {
 export async function criarContrato(clienteId: string): Promise<Resultado> {
   const negado = await autorizar();
   if (negado) return { erro: negado };
+  if (!UUID.test(clienteId)) return { erro: "Cliente inválido." };
+
+  const supabase = await createServerClient();
+  const { data: cliente, error: erroCliente } = await supabase
+    .from("clientes").select("id").eq("id", clienteId).maybeSingle();
+  if (erroCliente) return { erro: falha("buscar cliente", erroCliente.message) };
+  if (!cliente) return { erro: "Cliente não encontrado." };
+
   const existente = await contratoVigenteDoCliente(clienteId);
   if (existente) redirect(`/contratos/${existente}`);
 
-  const supabase = await createServerClient();
   const { data, error } = await supabase
     .from("contratos").insert({ cliente_id: clienteId, situacao: "em_negociacao" }).select("id").single();
+  if (error?.code === "23505") return { erro: "Este cliente já tem um contrato vigente." };
   if (error || !data) return { erro: falha("criar", error?.message ?? "sem retorno") };
   await registrarAuditoria("contrato.criar", "contratos", data.id, { cliente_id: clienteId });
   revalidatePath(`/clientes/${clienteId}`);
@@ -55,7 +65,7 @@ export async function salvarContrato(_: Resultado, dados: FormData): Promise<Res
   if (negado) return { erro: negado };
 
   const id = String(dados.get("id") ?? "");
-  if (!id) return { erro: "Contrato não informado." };
+  if (!id || !UUID.test(id)) return { erro: "Contrato inválido." };
 
   const r = contratoSchema.safeParse({
     situacao: dados.get("situacao") ?? "",
@@ -72,7 +82,7 @@ export async function salvarContrato(_: Resultado, dados: FormData): Promise<Res
     parcelas: dados.get("parcelas") ?? "",
   });
   if (!r.success) {
-    return { erro: r.error.issues.map((i) => `${ROTULOS[String(i.path[0])] ?? String(i.path[0] ?? "")}: ${i.message}`).join(" · ") };
+    return { erro: r.error.issues.map((i) => (i.path[0] === "parcelas" ? i.message : `${ROTULOS[String(i.path[0])] ?? String(i.path[0] ?? "")}: ${i.message}`)).join(" · ") };
   }
   const { motivo, parcelas, ...campos } = r.data;
 
@@ -88,40 +98,13 @@ export async function salvarContrato(_: Resultado, dados: FormData): Promise<Res
   if (campos.situacao !== "encerrado") campos.encerrado_em = null;
 
   const supabase = await createServerClient();
-  const { error: erroContrato } = await supabase.from("contratos").update(campos).eq("id", id);
-  if (erroContrato) return { erro: falha("atualizar", erroContrato.message) };
-
-  // Substitui as parcelas; em caso de falha na inserção, restaura as anteriores.
-  const { error: erroDel } = await supabase.from("parcelas_adicionais").delete().eq("contrato_id", id);
-  if (erroDel) return { erro: falha("limpar parcelas", erroDel.message) };
-  if (parcelas.length) {
-    const { error: erroIns } = await supabase
-      .from("parcelas_adicionais")
-      .insert(parcelas.map((p) => ({ contrato_id: id, mes: p.mes, valor: p.valor, forma: p.forma, dia: p.dia })));
-    if (erroIns) {
-      if (atual.parcelas.length) {
-        await supabase.from("parcelas_adicionais").insert(
-          atual.parcelas.map((p) => ({ contrato_id: id, mes: p.mes, valor: p.valor, forma: p.forma, dia: p.dia })),
-        );
-      }
-      return { erro: falha("gravar parcelas", erroIns.message) };
-    }
-  }
-
-  const historico: { contrato_id: string; campo: string; de: number | null; para: number | null; motivo: string | null }[] = [];
-  if (atual.honorario !== campos.honorario) {
-    historico.push({ contrato_id: id, campo: "honorario", de: atual.honorario, para: campos.honorario, motivo });
-  }
-  if (atual.parcela_adicional_total !== campos.parcela_adicional_total) {
-    historico.push({
-      contrato_id: id, campo: "parcela_adicional_total",
-      de: atual.parcela_adicional_total, para: campos.parcela_adicional_total, motivo,
-    });
-  }
-  if (historico.length) {
-    const { error } = await supabase.from("historico_valores").insert(historico);
-    if (error) return { erro: falha("histórico de valores", error.message) };
-  }
+  const { error } = await supabase.rpc("salvar_contrato", {
+    p_contrato_id: id,
+    p_campos: campos,
+    p_parcelas: parcelas,
+    p_motivo: motivo ?? "",
+  });
+  if (error) return { erro: falha("salvar contrato", error.message) };
 
   await registrarAuditoria("contrato.atualizar", "contratos", id, { ...campos, parcelas });
   revalidatePath(`/contratos/${id}`);

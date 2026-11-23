@@ -9,23 +9,39 @@ const dinheiro = (obrigatorio = false) =>
     .refine((s) => s === "" || /^[\sR$\d.,]+$/.test(s), "Valor inválido.")
     .transform((s) => (s === "" ? null : parseBRL(s)));
 
-const parcelaSchema = z.object({
-  mes: z.number(),
-  valor: z.number(),
-  forma: z.enum(["junto_mensalidade", "data_propria"]),
-  dia: z.number().nullable(),
-});
+type ParcelaBruta = { mes: number; valor: number; forma: "junto_mensalidade" | "data_propria"; dia: number | null };
 
-const parcelasJson = z.string().transform((s, ctx) => {
+/** Valida cada parcela e aponta qual delas (e qual campo) está errada. */
+function erroDaParcela(p: unknown): string | null {
+  if (typeof p !== "object" || p === null) return "inválida";
+  const o = p as Record<string, unknown>;
+  if (typeof o.mes !== "number" || !Number.isInteger(o.mes) || o.mes < 1 || o.mes > 12) return "mês inválido";
+  if (typeof o.valor !== "number" || !Number.isInteger(o.valor) || o.valor <= 0) return "valor inválido";
+  if (o.forma !== "junto_mensalidade" && o.forma !== "data_propria") return "vencimento inválido";
+  if (o.dia !== null && (typeof o.dia !== "number" || !Number.isInteger(o.dia) || o.dia < 1 || o.dia > 31)) return "dia inválido";
+  return null;
+}
+
+const parcelasJson = z.string().transform((s, ctx): ParcelaBruta[] => {
   if (s.trim() === "") return [];
+  let bruto: unknown;
   try {
-    const r = z.array(parcelaSchema).safeParse(JSON.parse(s));
-    if (r.success) return r.data;
+    bruto = JSON.parse(s);
   } catch {
-    // cai no erro abaixo
+    bruto = null;
   }
-  ctx.addIssue({ code: "custom", message: "Parcelas inválidas." });
-  return z.NEVER;
+  if (!Array.isArray(bruto)) {
+    ctx.addIssue({ code: "custom", message: "Parcelas inválidas." });
+    return z.NEVER;
+  }
+  for (let i = 0; i < bruto.length; i++) {
+    const erro = erroDaParcela(bruto[i]);
+    if (erro) {
+      ctx.addIssue({ code: "custom", message: `Parcela ${i + 1}: ${erro}.` });
+      return z.NEVER;
+    }
+  }
+  return bruto as ParcelaBruta[];
 });
 
 export const contratoSchema = z

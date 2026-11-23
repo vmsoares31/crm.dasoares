@@ -1114,7 +1114,15 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      salvar_contrato: {
+        Args: {
+          p_campos: Json
+          p_contrato_id: string
+          p_motivo: string
+          p_parcelas: Json
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

@@ -27,4 +27,23 @@ describe("contratoSchema", () => {
     expect(contratoSchema.safeParse({ ...base, dia_vencimento: "40" }).success).toBe(false);
     expect(contratoSchema.safeParse({ ...base, parcelas: "{x" }).success).toBe(false);
   });
+
+  it("aponta a parcela com valor inválido", () => {
+    const parcelas = JSON.stringify([
+      { mes: 11, valor: 1000, forma: "junto_mensalidade", dia: null },
+      { mes: 12, valor: null, forma: "junto_mensalidade", dia: null },
+    ]);
+    const r = contratoSchema.safeParse({ ...base, parcelas });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0].message).toBe("Parcela 2: valor inválido.");
+  });
+
+  it("aponta mês e dia inválidos da parcela", () => {
+    const mes = JSON.stringify([{ mes: 13, valor: 100, forma: "junto_mensalidade", dia: null }]);
+    const dia = JSON.stringify([{ mes: 12, valor: 100, forma: "data_propria", dia: 40 }]);
+    const a = contratoSchema.safeParse({ ...base, parcelas: mes });
+    const b = contratoSchema.safeParse({ ...base, parcelas: dia });
+    expect(!a.success && a.error.issues[0].message).toBe("Parcela 1: mês inválido.");
+    expect(!b.success && b.error.issues[0].message).toBe("Parcela 1: dia inválido.");
+  });
 });

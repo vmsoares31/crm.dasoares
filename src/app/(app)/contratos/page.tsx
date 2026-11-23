@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { listarCarteiras } from "@/db/carteiras";
 import { CONTRATOS_POR_PAGINA, listarContratos } from "@/db/contratos";
 import { formatarBRL } from "@/domain/dinheiro";
-import { ROTULOS_SITUACAO_CONTRATO } from "@/domain/rotulos";
+import { ROTULOS_SITUACAO_CONTRATO, ROTULOS_TIPO_COBRANCA } from "@/domain/rotulos";
 
 type Busca = { q?: string; situacao?: string; carteira?: string; legado?: string; pagina?: string };
 
@@ -76,7 +76,7 @@ export default async function ContratosPage({ searchParams }: { searchParams: Pr
                   <td className="whitespace-nowrap tabular-nums">{k.honorario != null ? formatarBRL(k.honorario) : "—"}</td>
                   <td className="whitespace-nowrap">{k.dia_vencimento != null ? `dia ${k.dia_vencimento}` : "—"}</td>
                   <td className="whitespace-nowrap">{k.carteiraNome ?? "—"}</td>
-                  <td className="whitespace-nowrap">{k.tipo_cobranca ?? "—"}</td>
+                  <td className="whitespace-nowrap">{k.tipo_cobranca ? (ROTULOS_TIPO_COBRANCA[k.tipo_cobranca as keyof typeof ROTULOS_TIPO_COBRANCA] ?? k.tipo_cobranca) : "—"}</td>
                 </tr>
               ))}
               {linhas.length === 0 && <tr><td colSpan={6} className="py-10 text-center text-muted-foreground">Nenhum contrato encontrado.</td></tr>}

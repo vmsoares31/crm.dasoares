@@ -112,7 +112,7 @@ export default async function ClientePage({ params }: { params: Promise<{ id: st
               <div className="min-w-0"><dt className="text-xs font-medium text-muted-foreground">E-mail de cobrança</dt><dd className="mt-0.5 truncate font-medium">{k.email_cobranca ?? "—"}</dd></div>
               <div><dt className="text-xs font-medium text-muted-foreground">Situação</dt><dd className="mt-0.5 font-medium">{k.situacao}{k.legado ? " (legado)" : ""}</dd></div>
             </dl>
-            <Link href={`/contratos/${k.id}`} className="link inline-block text-sm">Contrato</Link>
+            <Link href={`/contratos/${k.id}`} className="link inline-block text-sm">Abrir contrato</Link>
           </CardContent>
         )}
       </Card>
