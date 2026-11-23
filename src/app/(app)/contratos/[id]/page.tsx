@@ -5,13 +5,16 @@ import { CabecalhoPagina } from "@/components/cabecalho-pagina";
 import { Selo } from "@/components/situacao-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { listarCarteiras } from "@/db/carteiras";
-import { obterContrato } from "@/db/contratos";
+import { obterCliente } from "@/db/clientes";
+import { listarDocumentosContrato, obterContrato } from "@/db/contratos";
+import { pendenciasCadastro, ROTULOS_PENDENCIA } from "@/domain/completude";
 import { formatarBRL } from "@/domain/dinheiro";
 import { pode } from "@/domain/permissoes";
 import { ROTULOS_SITUACAO_CONTRATO } from "@/domain/rotulos";
 import type { ParcelaAdicional } from "@/domain/tipos";
 import { usuarioAtual } from "@/lib/auth";
 import { FormularioContrato } from "./formulario-contrato";
+import { BotaoGerarContrato } from "./gerar/botao-gerar";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ROTULOS_CAMPO: Record<string, string> = { honorario: "Honorário", parcela_adicional_total: "Parcela adicional" };
@@ -25,7 +28,23 @@ export default async function ContratoPage({ params }: { params: Promise<{ id: s
   const usuario = await usuarioAtual();
   const encerrado = k.situacao === "encerrado";
   const podeEditar = !!usuario && pode(usuario.permissoes, "contratos.editar") && !encerrado;
-  const carteiras = await listarCarteiras();
+  const [carteiras, cliente, documentos] = await Promise.all([
+    listarCarteiras(),
+    k.legado ? Promise.resolve(null) : obterCliente(k.cliente.id),
+    k.legado ? Promise.resolve([]) : listarDocumentosContrato(k.id),
+  ]);
+  const pendencias = cliente ? pendenciasCadastro(cliente) : [];
+  const bloqueio = !usuario || !pode(usuario.permissoes, "contratos.editar")
+    ? "Você não tem permissão para gerar contratos."
+    : k.situacao !== "fechado"
+      ? "Disponível quando o contrato estiver fechado."
+      : k.cliente.situacao !== "ativo"
+        ? "Disponível quando o cliente estiver ativo."
+        : pendencias.length > 0
+          ? `Resolva as pendências do cadastro: ${pendencias.map((p) => ROTULOS_PENDENCIA[p]).join(", ")}.`
+          : null;
+  const dataHora = (s: string) =>
+    new Date(s).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
 
   const reais = (c: number | null) => (c == null ? "" : (c / 100).toFixed(2).replace(".", ","));
   const parcelas: ParcelaAdicional[] = k.parcelas.map((p) => ({
@@ -64,6 +83,37 @@ export default async function ContratoPage({ params }: { params: Promise<{ id: s
             }}
           />
         </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle><h2>Documento do contrato</h2></CardTitle>
+          {k.legado && <CardDescription>Contrato anterior (sem documento no CRM).</CardDescription>}
+        </CardHeader>
+        {!k.legado && (
+          <CardContent className="space-y-4">
+            <BotaoGerarContrato contratoId={k.id} bloqueio={bloqueio} />
+            {documentos.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma versão gerada.</p>
+            ) : (
+              <table className="tabela">
+                <thead><tr><th>Gerado em</th><th>Por</th><th>Arquivos</th></tr></thead>
+                <tbody>
+                  {documentos.map((d) => (
+                    <tr key={d.id}>
+                      <td className="whitespace-nowrap">{dataHora(d.gerado_em)}</td>
+                      <td>{d.geradoPorNome ?? "—"}</td>
+                      <td className="space-x-3 whitespace-nowrap">
+                        {d.docxUrl ? <a href={d.docxUrl} className="link">.docx</a> : <span className="text-muted-foreground">.docx indisponível</span>}
+                        {d.pdfUrl ? <a href={d.pdfUrl} className="link">PDF</a> : <span className="text-muted-foreground">{d.pdf_path ? "PDF indisponível" : "sem PDF"}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </CardContent>
+        )}
       </Card>
 
       <Card>

@@ -111,3 +111,39 @@ export async function listarContratos(f: FiltroContratos): Promise<{ linhas: Con
     .map(({ carteira, ...k }) => ({ ...k, carteiraNome: carteira?.nome ?? null }));
   return { linhas, total: count ?? 0 };
 }
+
+export type DocumentoContrato = Tables<"contrato_documentos"> & {
+  geradoPorNome: string | null;
+  docxUrl: string | null;
+  pdfUrl: string | null;
+};
+
+/** Versões geradas do contrato (mais recente primeiro), com links temporários de download. */
+export async function listarDocumentosContrato(contratoId: string): Promise<DocumentoContrato[]> {
+  const supabase = await createServerClient();
+  const { data, error } = await supabase
+    .from("contrato_documentos")
+    .select("*")
+    .eq("contrato_id", contratoId)
+    .order("gerado_em", { ascending: false });
+  if (error) throw new Error(`Falha ao listar documentos do contrato: ${error.message}`);
+  const docs = data ?? [];
+  if (docs.length === 0) return [];
+
+  const ids = [...new Set(docs.map((d) => d.gerado_por).filter((x): x is string => !!x))];
+  const { data: perfis } = ids.length
+    ? await supabase.from("perfis").select("usuario_id, nome").in("usuario_id", ids)
+    : { data: [] as { usuario_id: string; nome: string }[] };
+  const nomes = new Map((perfis ?? []).map((p) => [p.usuario_id, p.nome]));
+
+  const caminhos = docs.flatMap((d) => [d.docx_path, d.pdf_path].filter((x): x is string => !!x));
+  const { data: assinadas } = await supabase.storage.from("contratos").createSignedUrls(caminhos, 60 * 10, { download: true });
+  const urls = new Map((assinadas ?? []).filter((s) => !s.error && s.path).map((s) => [s.path as string, s.signedUrl]));
+
+  return docs.map((d) => ({
+    ...d,
+    geradoPorNome: d.gerado_por ? (nomes.get(d.gerado_por) ?? null) : null,
+    docxUrl: urls.get(d.docx_path) ?? null,
+    pdfUrl: d.pdf_path ? (urls.get(d.pdf_path) ?? null) : null,
+  }));
+}
