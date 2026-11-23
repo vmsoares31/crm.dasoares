@@ -4,7 +4,7 @@ import { CabecalhoPagina } from "@/components/cabecalho-pagina";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { listarExportaveis, listarSaidasCarteiras } from "@/db/exportacao";
-import { sugerirVencimento } from "@/domain/cora-csv";
+import { separarPorSaida, sugerirVencimento } from "@/domain/cora-csv";
 import { hojeSP } from "@/domain/datas";
 import { ROTULOS_TIPO_COBRANCA } from "@/domain/rotulos";
 import { exigirPermissaoPagina } from "@/lib/auth";
@@ -23,13 +23,16 @@ export default async function ExportarPage({
 
   const [todas, carteiras] = await Promise.all([listarExportaveis(competencia), listarSaidasCarteiras()]);
   const hoje = hojeSP();
+  const manuais = new Set(
+    separarPorSaida(todas.filter((c) => c.situacao === "prevista"), carteiras).manual.map((c) => c.id),
+  );
   const linhas: LinhaExportacao[] = todas
     .filter((c) => c.situacao === "prevista")
     .filter((c) => !carteira || (carteira === "_sem" ? !c.carteiraId : c.carteiraId === carteira))
     .filter((c) => !tipo || c.tipo === tipo)
     .map((c) => ({
       id: c.id, cliente: c.clienteNome, documento: c.documento, valor: c.total, vencimento: c.vencimento,
-      descricao: c.descricao, tipo: c.tipo, carteira: c.carteiraNome, vencida: c.vencimento < hoje,
+      descricao: c.descricao, tipo: c.tipo, carteira: c.carteiraNome, vencida: c.vencimento < hoje, manual: manuais.has(c.id),
     }));
 
   return (

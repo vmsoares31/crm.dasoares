@@ -1,11 +1,9 @@
 import ExcelJS from "exceljs";
 
-import { ACAO_EXPORTAR, listarExportaveis, listarSaidasCarteiras } from "@/db/exportacao";
+import { ACAO_EXPORTAR, listarExportaveis, listarSaidasCarteiras, type CobrancaExportavel } from "@/db/exportacao";
 import { obterEscritorio } from "@/db/escritorio";
-import { gerarCsvCora, type LinhaCora } from "@/domain/cora-csv";
-import { formatarData, hojeSP } from "@/domain/datas";
-import { formatarDocumento } from "@/domain/documentos";
-import { ROTULOS_TIPO_COBRANCA } from "@/domain/rotulos";
+import { CORA_CABECALHO, camposCora, gerarCsvCora, separarExportaveis, separarPorSaida, type LinhaCora } from "@/domain/cora-csv";
+import { hojeSP } from "@/domain/datas";
 import { registrarAuditoria } from "@/lib/auditoria";
 import { SemPermissaoError, exigirPermissao } from "@/lib/auth";
 
@@ -40,26 +38,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ com
     const [todas, escritorio, carteiras] = await Promise.all([
       listarExportaveis(competencia), obterEscritorio(), listarSaidasCarteiras(),
     ]);
-    const escolhidas = todas.filter((c) => ids.includes(c.id));
-    if (escolhidas.length === 0) return json({ erro: "Nenhuma das cobranças selecionadas foi encontrada." }, 404);
+    const selecionadas = todas.filter((c) => ids.includes(c.id));
+    if (selecionadas.length === 0) return json({ erro: "Nenhuma das cobranças selecionadas foi encontrada." }, 404);
+    // Só cobranças ainda previstas saem em arquivo (evita boleto em duplicidade).
+    const { previstas, ignoradas } = separarExportaveis(selecionadas);
+    const erros: { cliente: string; erro: string }[] = ignoradas.map((c) => ({ cliente: c.clienteNome, erro: "Não está mais prevista (já emitida, paga ou cancelada)" }));
+    if (previstas.length === 0) return json({ erro: "Nenhuma das cobranças selecionadas está prevista.", erros }, 422);
+
+    const dados = (c: CobrancaExportavel): LinhaCora => ({
+      cobrancaId: c.id, nomePagador: c.clienteNome, documento: c.documento, valor: c.total, vencimento: c.vencimento,
+      nomeCobranca: escritorio.nome_cobranca, descricao: c.descricao, tipo: c.tipo ?? "boleto", email: c.email,
+      notificarEm: escritorio.notificar_em, multaPct: escritorio.multa_pct, jurosPct: escritorio.juros_mes_pct,
+    });
 
     if (formato === "cora") {
-      const nomeDe = new Map(escolhidas.map((c) => [c.id, c.clienteNome]));
-      // Cobranças de carteira manual ou cartão ficam fora do arquivo do Cora, com aviso.
-      const saida = new Map(carteiras.map((c) => [c.id, c.saida]));
-      const linhas: LinhaCora[] = escolhidas.map((c) => ({
-        cobrancaId: c.id, nomePagador: c.clienteNome, documento: c.documento, valor: c.total, vencimento: c.vencimento,
-        nomeCobranca: escritorio.nome_cobranca, descricao: c.descricao, tipo: c.tipo ?? "boleto", email: c.email,
-        notificarEm: escritorio.notificar_em, multaPct: escritorio.multa_pct, jurosPct: escritorio.juros_mes_pct,
-      }));
-      const foraDaCarteira = escolhidas
-        .filter((c) => c.tipo !== "cartao" && c.carteiraId && saida.get(c.carteiraId) === "lista_manual")
-        .map((c) => ({ cobrancaId: c.id, erro: "Carteira de lista manual (não vai ao Cora)" }));
-      const excluidas = new Set(foraDaCarteira.map((e) => e.cobrancaId));
-      const { csv, erros: errosCsv } = gerarCsvCora(linhas.filter((l) => !excluidas.has(l.cobrancaId)), hojeSP());
-      const erros = [...errosCsv, ...foraDaCarteira].map((e) => ({ cliente: nomeDe.get(e.cobrancaId) ?? e.cobrancaId, erro: e.erro }));
-      const comErro = new Set([...errosCsv, ...foraDaCarteira].map((e) => e.cobrancaId));
-      const exportadas = escolhidas.filter((c) => !comErro.has(c.id)).map((c) => c.id);
+      const { cora, manual } = separarPorSaida(
+        previstas.map((c) => ({ ...c, carteiraId: c.carteiraId })), carteiras,
+      );
+      for (const c of manual) erros.push({ cliente: c.clienteNome, erro: "Vai para a lista manual (cartão, carteira manual ou sem carteira)" });
+      const nomeDe = new Map(cora.map((c) => [c.id, c.clienteNome]));
+      const { csv, erros: errosCsv } = gerarCsvCora(cora.map(dados), hojeSP());
+      for (const e of errosCsv) erros.push({ cliente: nomeDe.get(e.cobrancaId) ?? e.cobrancaId, erro: e.erro });
+      const comErro = new Set(errosCsv.map((e) => e.cobrancaId));
+      const exportadas = cora.filter((c) => !comErro.has(c.id)).map((c) => c.id);
       if (exportadas.length === 0) return json({ erro: "Nenhuma cobrança pôde entrar no arquivo.", erros }, 422);
 
       await registrarAuditoria(ACAO_EXPORTAR, "competencia", null, { competencia, saida: "csv_cora", cobranca_ids: exportadas, com_erro: erros.length });
@@ -75,34 +76,30 @@ export async function POST(request: Request, { params }: { params: Promise<{ com
       });
     }
 
+    // Lista manual: mesmas colunas do CSV do Cora + carteira.
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Lista manual");
-    ws.columns = [
-      { header: "Cliente", key: "cliente", width: 44 }, { header: "CPF/CNPJ", key: "doc", width: 20 },
-      { header: "Valor", key: "valor", width: 14, style: { numFmt: '"R$" #,##0.00' } },
-      { header: "Vencimento", key: "venc", width: 13 }, { header: "Descrição", key: "desc", width: 44 },
-      { header: "Tipo", key: "tipo", width: 14 }, { header: "E-mail", key: "email", width: 32 },
-      { header: "Carteira", key: "carteira", width: 20 },
-    ];
+    const larguras = [44, 18, 12, 12, 22, 44, 12, 32, 12, 8, 12, 10, 18, 20];
+    ws.columns = [...CORA_CABECALHO, "carteira"].map((h, i) => ({ header: h, key: h, width: larguras[i] }));
     ws.getRow(1).font = { bold: true };
-    for (const c of escolhidas) {
-      ws.addRow({
-        cliente: c.clienteNome, doc: formatarDocumento(c.documento), valor: c.total / 100, venc: formatarData(c.vencimento),
-        desc: c.descricao, tipo: c.tipo ? ROTULOS_TIPO_COBRANCA[c.tipo] : "", email: c.email, carteira: c.carteiraNome,
-      });
+    for (const c of previstas) {
+      const campos = camposCora(dados(c));
+      ws.addRow([...campos.slice(0, 2), c.total / 100, ...campos.slice(3), c.carteiraNome]);
     }
+    ws.getColumn(3).numFmt = "#,##0.00";
+    ws.getColumn(2).numFmt = "@";
     const buffer = await wb.xlsx.writeBuffer();
     await registrarAuditoria(ACAO_EXPORTAR, "competencia", null, {
-      competencia, saida: "lista_manual", cobranca_ids: escolhidas.map((c) => c.id), com_erro: 0,
+      competencia, saida: "lista_manual", cobranca_ids: previstas.map((c) => c.id), com_erro: erros.length,
     });
     return new Response(buffer as ArrayBuffer, {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "Content-Disposition": `attachment; filename="lista-manual-${competencia}.xlsx"`,
         "Cache-Control": "no-store",
-        "X-Exportadas": String(escolhidas.length),
-        "X-Erros-Total": "0",
-        "X-Erros": encodeURIComponent("[]"),
+        "X-Exportadas": String(previstas.length),
+        "X-Erros-Total": String(erros.length),
+        "X-Erros": encodeURIComponent(JSON.stringify(erros.slice(0, MAX_ERROS_NO_CABECALHO))),
       },
     });
   } catch (e) {

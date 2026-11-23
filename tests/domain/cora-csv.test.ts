@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CORA_CABECALHO, gerarCsvCora, separarPorSaida, sugerirVencimento, type LinhaCora } from "@/domain/cora-csv";
+import { CORA_CABECALHO, camposCora, dataISOValida, gerarCsvCora, separarExportaveis, separarPorSaida, sugerirVencimento, type LinhaCora } from "@/domain/cora-csv";
 
 const base: LinhaCora = {
   cobrancaId: "c1", nomePagador: "Renato Goncalves Anestesia Veterinaria Ltda", documento: "40342580000110",
@@ -64,5 +64,37 @@ describe("separarPorSaida", () => {
     const r = separarPorSaida(itens, carteiras);
     expect(r.cora.map((i) => i.n)).toEqual([1]);
     expect(r.manual.map((i) => i.n)).toEqual([2, 3, 4]);
+  });
+});
+
+describe("separarExportaveis", () => {
+  it("só prevista passa", () => {
+    const r = separarExportaveis([{ s: 1, situacao: "prevista" }, { s: 2, situacao: "emitida" }, { s: 3, situacao: "paga" }]);
+    expect(r.previstas.map((i) => i.s)).toEqual([1]);
+    expect(r.ignoradas.map((i) => i.s)).toEqual([2, 3]);
+  });
+});
+
+describe("dataISOValida", () => {
+  it("valida calendário real", () => {
+    expect(dataISOValida("2027-02-28")).toBe(true);
+    expect(dataISOValida("2028-02-29")).toBe(true);
+    expect(dataISOValida("2027-02-31")).toBe(false);
+    expect(dataISOValida("2027-13-01")).toBe(false);
+    expect(dataISOValida("27-01-01")).toBe(false);
+  });
+});
+
+describe("camposCora", () => {
+  it("tem uma coluna por cabeçalho", () => {
+    expect(camposCora(base)).toHaveLength(CORA_CABECALHO.length);
+  });
+});
+
+describe("separarPorSaida sem carteira", () => {
+  it("carteira nula vai para a lista manual", () => {
+    const r = separarPorSaida([{ carteiraId: null, tipo: "boleto" as const }], [{ id: "a", saida: "csv_cora" as const }]);
+    expect(r.manual).toHaveLength(1);
+    expect(r.cora).toHaveLength(0);
   });
 });

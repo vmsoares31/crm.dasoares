@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { aplicarVencimento, idsDoUltimoArquivo, marcarEmitidas } from "@/db/exportacao";
+import { dataISOValida } from "@/domain/cora-csv";
 import { hojeSP } from "@/domain/datas";
 import { registrarAuditoria } from "@/lib/auditoria";
 import { SemPermissaoError, exigirPermissao } from "@/lib/auth";
@@ -11,7 +12,6 @@ export type ResultadoExportacao = { ok?: boolean; erro?: string; mensagem?: stri
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const COMPETENCIA = /^[0-9]{4}-(0[1-9]|1[0-2])$/;
-const DATA = /^\d{4}-\d{2}-\d{2}$/;
 
 async function autorizar(): Promise<string | null> {
   try {
@@ -71,7 +71,7 @@ export async function aplicarNovaData(competencia: string, ids: string[], data: 
   if (!COMPETENCIA.test(competencia)) return { erro: "Competência inválida." };
   const validos = idsValidos(ids);
   if (!validos || validos.length === 0) return { erro: "Selecione ao menos uma cobrança." };
-  if (typeof data !== "string" || !DATA.test(data) || Number.isNaN(Date.parse(data))) return { erro: "Data inválida." };
+  if (typeof data !== "string" || !dataISOValida(data)) return { erro: "Data inválida." };
   if (data < hojeSP()) return { erro: "A nova data não pode estar no passado." };
 
   try {

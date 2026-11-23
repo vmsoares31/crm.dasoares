@@ -16,7 +16,7 @@ import { aplicarNovaData, marcarComoEmitidas, type ResultadoExportacao } from ".
 
 export type LinhaExportacao = {
   id: string; cliente: string; documento: string; valor: number; vencimento: string; descricao: string;
-  tipo: TipoCobranca | null; carteira: string; vencida: boolean;
+  tipo: TipoCobranca | null; carteira: string; vencida: boolean; manual: boolean;
 };
 
 type Aviso = { tipo: "erro" | "ok"; texto: string; detalhes?: string[] };
@@ -29,6 +29,7 @@ export function PainelExportacao({ competencia, linhas, vencimentoSugerido }: { 
   const [pendente, iniciar] = useTransition();
   const ids = linhas.filter((l) => selecionadas.has(l.id)).map((l) => l.id);
   const vencidas = linhas.filter((l) => l.vencida);
+  const manuaisSelecionadas = linhas.filter((l) => l.manual && selecionadas.has(l.id)).length;
   const todasMarcadas = linhas.length > 0 && ids.length === linhas.length;
 
   function alternar(id: string) {
@@ -114,6 +115,11 @@ export function PainelExportacao({ competencia, linhas, vencimentoSugerido }: { 
             Marcar todas do último arquivo
           </Button>
         </div>
+        {manuaisSelecionadas > 0 && (
+          <p className="rounded-lg bg-warning-soft px-3 py-2 text-sm text-warning">
+            {manuaisSelecionadas} selecionada(s) vão para a lista manual (cartão, carteira manual ou sem carteira) e ficam fora do CSV do Cora.
+          </p>
+        )}
         {vencidas.length > 0 && (
           <div className="flex flex-wrap items-end gap-3 rounded-lg bg-warning-soft px-3 py-2 text-sm text-warning">
             <span className="self-center">{vencidas.length} cobrança(s) com vencimento no passado (o Cora recusa).</span>
@@ -155,7 +161,7 @@ export function PainelExportacao({ competencia, linhas, vencimentoSugerido }: { 
                   <td className="print:hidden"><input type="checkbox" aria-label={`Selecionar ${l.cliente}`} checked={selecionadas.has(l.id)} onChange={() => alternar(l.id)} /></td>
                   <td className="font-medium">{l.cliente}</td>
                   <td className="tabular-nums">{formatarDocumento(l.documento)}</td>
-                  <td>{l.carteira}</td>
+                  <td>{l.carteira} {l.manual && <Selo tom="neutro" className="print:hidden">Lista manual</Selo>}</td>
                   <td>{l.tipo ? ROTULOS_TIPO_COBRANCA[l.tipo] : "—"}</td>
                   <td className="whitespace-nowrap">
                     {formatarData(l.vencimento)} {l.vencida && <Selo tom="alerta" className="print:hidden">Vencida</Selo>}

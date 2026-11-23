@@ -30,6 +30,26 @@ function pct(n: number): string {
   return `${String(n).replace(".", ",")}%`;
 }
 
+/** Valores das 13 colunas do arquivo, na ordem de CORA_CABECALHO (sem escape de CSV). */
+export function camposCora(l: LinhaCora): string[] {
+  return [
+    l.nomePagador, somenteDigitos(l.documento), formatarValorCora(l.valor), formatarData(l.vencimento),
+    l.nomeCobranca, l.descricao, l.tipo, l.email, l.notificarEm, pct(l.multaPct), pct(l.jurosPct), "", "",
+  ];
+}
+
+/** Só cobranças ainda previstas podem ser exportadas (as demais já foram emitidas, pagas ou canceladas). */
+export function separarExportaveis<T extends { situacao: string }>(itens: T[]): { previstas: T[]; ignoradas: T[] } {
+  return { previstas: itens.filter((i) => i.situacao === "prevista"), ignoradas: itens.filter((i) => i.situacao !== "prevista") };
+}
+
+/** Data AAAA-MM-DD que existe no calendário (rejeita 2027-02-31). */
+export function dataISOValida(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
 function validar(l: LinhaCora, hoje: DataISO): string | null {
   if (l.tipo === "cartao") return "Cartão não vai ao arquivo do Cora";
   if (l.valor < CORA_VALOR_MINIMO) return "Valor abaixo de R$ 20,00";
@@ -46,10 +66,7 @@ export function gerarCsvCora(linhas: LinhaCora[], hoje: DataISO): { csv: string;
       erros.push({ cobrancaId: l.cobrancaId, erro });
       continue;
     }
-    registros.push([
-      l.nomePagador, somenteDigitos(l.documento), formatarValorCora(l.valor), formatarData(l.vencimento),
-      l.nomeCobranca, l.descricao, l.tipo, l.email, l.notificarEm, pct(l.multaPct), pct(l.jurosPct), "", "",
-    ].map(campo).join(CORA_SEPARADOR));
+    registros.push(camposCora(l).map(campo).join(CORA_SEPARADOR));
   }
   return { csv: CORA_BOM + registros.join(CORA_QUEBRA_LINHA) + CORA_QUEBRA_LINHA, erros };
 }
