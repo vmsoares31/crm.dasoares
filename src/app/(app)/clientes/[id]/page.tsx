@@ -8,12 +8,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 import { listarCarteiras } from "@/db/carteiras";
 import { listarOpcoesIndicacao, obterCliente } from "@/db/clientes";
+import { extratoCredito, listarIndicacoes } from "@/db/indicacoes";
 import { pendenciasCadastro, ROTULOS_PENDENCIA } from "@/domain/completude";
 import { formatarDocumento } from "@/domain/documentos";
 import { formatarBRL } from "@/domain/dinheiro";
 import { pode } from "@/domain/permissoes";
 import { ROTULOS_SITUACAO_CLIENTE, ROTULOS_TIPO_COBRANCA } from "@/domain/rotulos";
 import { usuarioAtual } from "@/lib/auth";
+import { TabelaExtrato, TabelaIndicacoes } from "../../indicacoes/componentes";
+import { FormularioIndicacao } from "../../indicacoes/formulario-indicacao";
 import { FormularioCliente } from "../formulario-cliente";
 import { ConfirmarCadastro } from "./confirmar-cadastro";
 import { CriarContrato } from "./criar-contrato";
@@ -30,10 +33,17 @@ export default async function ClientePage({ params }: { params: Promise<{ id: st
   const usuario = await usuarioAtual();
   const podeEditar = !!usuario && pode(usuario.permissoes, "clientes.editar");
   const podeEditarContrato = !!usuario && pode(usuario.permissoes, "contratos.editar");
-  const [opcoes, carteiras] = await Promise.all([listarOpcoesIndicacao(id), listarCarteiras()]);
+  const [opcoes, carteiras, indicacoes, extrato] = await Promise.all([
+    listarOpcoesIndicacao(id), listarCarteiras(), listarIndicacoes({ clienteId: id }), extratoCredito(id),
+  ]);
   const pendencias = pendenciasCadastro(c);
   const k = c.contrato;
   const carteira = carteiras.find((x) => x.id === k?.carteira_id)?.nome;
+  const indicadoPor = indicacoes.find((i) => i.indicado.id === c.id) ?? null;
+  const indicou = indicacoes.filter((i) => i.indicador.id === c.id);
+  // indicado_por gravado antes do registro de indicações (importação/formulário antigo): não gera crédito
+  const indicadoPorLegado = !indicadoPor && c.indicado_por ? (opcoes.find((o) => o.id === c.indicado_por)?.razao_social ?? "outro cliente") : null;
+  const podeSerIndicado = !indicadoPor && !!k && (k.honorario ?? 0) > 0;
 
   const valores: Record<string, string> = {
     razao_social: c.razao_social, nome_fantasia: c.nome_fantasia ?? "",
@@ -43,7 +53,7 @@ export default async function ClientePage({ params }: { params: Promise<{ id: st
     bairro: c.bairro ?? "", cidade: c.cidade ?? "", uf: c.uf ?? "", cep: c.cep ?? "",
     telefone: c.telefone ?? "", email: c.email ?? "",
     inscricao_estadual: c.inscricao_estadual ?? "", inscricao_municipal: c.inscricao_municipal ?? "",
-    regime: c.regime ?? "", indicado_por: c.indicado_por ?? "", observacoes: c.observacoes ?? "",
+    regime: c.regime ?? "", observacoes: c.observacoes ?? "",
   };
 
   return (
@@ -85,7 +95,7 @@ export default async function ClientePage({ params }: { params: Promise<{ id: st
           {!podeEditar && <CardDescription>Somente leitura.</CardDescription>}
         </CardHeader>
         <CardContent>
-          <FormularioCliente id={c.id} valores={valores} suspeitos={c.campos_suspeitos} opcoesIndicacao={opcoes} somenteLeitura={!podeEditar} />
+          <FormularioCliente id={c.id} valores={valores} suspeitos={c.campos_suspeitos} somenteLeitura={!podeEditar} />
         </CardContent>
       </Card>
 
@@ -115,6 +125,43 @@ export default async function ClientePage({ params }: { params: Promise<{ id: st
             <Link href={`/contratos/${k.id}`} className="link inline-block text-sm">Abrir contrato</Link>
           </CardContent>
         )}
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle><h2>Indicações</h2></CardTitle>
+          <CardDescription>
+            {indicadoPor ? (
+              <>Indicado por <Link href={`/clientes/${indicadoPor.indicador.id}`} className="link">{indicadoPor.indicador.nome}</Link>.</>
+            ) : indicadoPorLegado ? (
+              <>O cadastro aponta “{indicadoPorLegado}” como indicador, mas a indicação não foi registrada e não gera crédito.</>
+            ) : "Cliente não indicado por outro cliente."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {!indicadoPor && podeEditar && (
+            podeSerIndicado ? (
+              <div className="space-y-2">
+                <h3 className="font-heading text-sm font-bold text-heading">Registrar quem indicou este cliente</h3>
+                <FormularioIndicacao indicadores={opcoes} indicadoFixo={c.id} />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Para registrar quem indicou este cliente, ele precisa ter contrato com honorário.</p>
+            )
+          )}
+          {indicou.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="font-heading text-sm font-bold text-heading">Clientes indicados</h3>
+              <div className="-mx-5"><TabelaIndicacoes linhas={indicou} vazio="" /></div>
+            </div>
+          )}
+          {(indicou.length > 0 || extrato.movimentos.length > 0) && (
+            <div className="space-y-2">
+              <h3 className="font-heading text-sm font-bold text-heading">Extrato de crédito</h3>
+              <TabelaExtrato extrato={extrato} />
+            </div>
+          )}
+        </CardContent>
       </Card>
     </div>
   );

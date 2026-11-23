@@ -48,7 +48,6 @@ export async function salvarCliente(_: Resultado, dados: FormData): Promise<Resu
   if (!r.success) return { erro: mensagens(r.error.issues) };
 
   const id = String(dados.get("id") ?? "");
-  if (id && r.data.indicado_por === id) return { erro: "Um cliente não pode indicar a si mesmo." };
 
   const supabase = await createServerClient();
   const erroUnico = (code?: string) =>

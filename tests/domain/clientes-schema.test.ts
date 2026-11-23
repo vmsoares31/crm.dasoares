@@ -5,7 +5,7 @@ import { clienteSchema, linhaMassaSchema, socioSchema } from "@/domain/clientes-
 const vazio = {
   razao_social: "ACME", nome_fantasia: "", documento: "", codigo_dominio: "", logradouro: "", numero: "",
   complemento: "", bairro: "", cidade: "", uf: "", cep: "", telefone: "", email: "",
-  inscricao_estadual: "", inscricao_municipal: "", regime: "", indicado_por: "", observacoes: "",
+  inscricao_estadual: "", inscricao_municipal: "", regime: "", observacoes: "",
 };
 
 describe("clienteSchema", () => {

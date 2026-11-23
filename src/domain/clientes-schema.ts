@@ -45,7 +45,7 @@ export const clienteSchema = z.object({
   inscricao_estadual: opcional,
   inscricao_municipal: opcional,
   regime: regimeOpcional,
-  indicado_por: texto.transform(nulavel),
+  // indicado_por não é editável pelo formulário: só registrar_indicacao (Task 14) o grava.
   observacoes: opcional,
 });
 export type ClienteEntrada = z.infer<typeof clienteSchema>;

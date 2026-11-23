@@ -1142,8 +1142,16 @@ export type Database = {
         }
         Returns: Json
       }
+      reavaliar_credito_indicacao: {
+        Args: { p_indicacao_id: string }
+        Returns: number
+      }
       registrar_baixa: {
         Args: { p_cobranca_id: string; p_data: string; p_valor: number }
+        Returns: Json
+      }
+      registrar_indicacao: {
+        Args: { p_indicado_id: string; p_indicador_id: string }
         Returns: Json
       }
       salvar_contrato: {

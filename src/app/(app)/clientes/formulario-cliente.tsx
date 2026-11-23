@@ -8,7 +8,6 @@ import { ROTULOS_REGIME } from "@/domain/rotulos";
 import { salvarCliente, type Resultado } from "./actions";
 
 export type ValoresCliente = Record<string, string>;
-type Opcao = { id: string; razao_social: string };
 
 const CAMPOS: { nome: string; rotulo: string; larga?: boolean }[] = [
   { nome: "razao_social", rotulo: "Razão social", larga: true },
@@ -28,9 +27,9 @@ const CAMPOS: { nome: string; rotulo: string; larga?: boolean }[] = [
   { nome: "inscricao_municipal", rotulo: "Inscrição municipal" },
 ];
 
-type Props = { id?: string; valores: ValoresCliente; suspeitos: string[]; opcoesIndicacao: Opcao[]; somenteLeitura: boolean };
+type Props = { id?: string; valores: ValoresCliente; suspeitos: string[]; somenteLeitura: boolean };
 
-export function FormularioCliente({ id, valores, suspeitos, opcoesIndicacao, somenteLeitura }: Props) {
+export function FormularioCliente({ id, valores, suspeitos, somenteLeitura }: Props) {
   const [estado, acao, pendente] = useActionState<Resultado, FormData>(salvarCliente, {});
   const campoSuspeito = (n: string) => suspeitos.includes(n);
   const classe = (n: string) =>
@@ -50,13 +49,6 @@ export function FormularioCliente({ id, valores, suspeitos, opcoesIndicacao, som
           <select name="regime" defaultValue={valores.regime ?? ""} className={classe("regime")}>
             <option value="">Não informado</option>
             {Object.entries(ROTULOS_REGIME).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
-          </select>
-        </label>
-        <label className="space-y-1.5 text-sm font-medium">
-          <span>Indicado por</span>
-          <select name="indicado_por" defaultValue={valores.indicado_por ?? ""} className="campo w-full font-normal">
-            <option value="">Ninguém</option>
-            {opcoesIndicacao.map((o) => <option key={o.id} value={o.id}>{o.razao_social}</option>)}
           </select>
         </label>
         <label className="space-y-1.5 text-sm font-medium sm:col-span-2">
