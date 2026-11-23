@@ -4,11 +4,13 @@ import { Selo, type TomSelo } from "@/components/situacao-badge";
 import type { ExtratoCredito, IndicacaoLinha, TipoMovimento } from "@/db/indicacoes";
 import { formatarBRL } from "@/domain/dinheiro";
 import type { SituacaoIndicacao } from "@/domain/indicacao";
+import { BaixarIndicacao } from "./baixar-indicacao";
 
 const SITUACOES: Record<SituacaoIndicacao, { rotulo: string; tom: TomSelo }> = {
   aguardando: { rotulo: "Aguardando 1º pagamento", tom: "alerta" },
   liberado: { rotulo: "Liberado", tom: "sucesso" },
   usado: { rotulo: "Usado", tom: "neutro" },
+  baixada: { rotulo: "Baixada", tom: "neutro" },
 };
 
 const MOVIMENTOS: Record<TipoMovimento, { rotulo: string; sinal: "" | "+" | "−" }> = {
@@ -28,16 +30,16 @@ export function SeloIndicacao({ situacao }: { situacao: SituacaoIndicacao }) {
   return <Selo tom={s.tom}>{s.rotulo}</Selo>;
 }
 
-export function TabelaIndicacoes({ linhas, vazio }: { linhas: IndicacaoLinha[]; vazio: string }) {
+export function TabelaIndicacoes({ linhas, vazio, podeBaixar = false }: { linhas: IndicacaoLinha[]; vazio: string; podeBaixar?: boolean }) {
   return (
     <div className="overflow-x-auto">
       <table className="tabela">
         <thead>
-          <tr><th>Indicador</th><th>Indicado</th><th>Registrada em</th><th>Crédito</th><th>Situação</th></tr>
+          <tr><th>Indicador</th><th>Indicado</th><th>Registrada em</th><th>Crédito</th><th>Situação</th>{podeBaixar && <th>Ação</th>}</tr>
         </thead>
         <tbody>
           {linhas.map((l) => (
-            <tr key={l.id}>
+            <tr key={l.id} className={l.situacao === "baixada" ? "text-muted-foreground" : undefined}>
               <td className="max-w-72"><Link href={`/clientes/${l.indicador.id}`} className="block truncate font-medium hover:underline">{l.indicador.nome}</Link></td>
               <td className="max-w-72"><Link href={`/clientes/${l.indicado.id}`} className="block truncate hover:underline">{l.indicado.nome}</Link></td>
               <td className="whitespace-nowrap">{dataSP(l.criadoEm)}</td>
@@ -47,11 +49,19 @@ export function TabelaIndicacoes({ linhas, vazio }: { linhas: IndicacaoLinha[]; 
                   <span className="block text-xs font-normal text-muted-foreground">{formatarBRL(l.consumido)} já usado</span>
                 )}
               </td>
-              <td className="whitespace-nowrap"><SeloIndicacao situacao={l.situacao} /></td>
+              <td>
+                <SeloIndicacao situacao={l.situacao} />
+                {l.baixa && (
+                  <span className="mt-1 block max-w-64 text-xs font-normal text-muted-foreground">
+                    {dataSP(l.baixa.em)}{l.baixa.por ? ` por ${l.baixa.por}` : ""}: {l.baixa.motivo}
+                  </span>
+                )}
+              </td>
+              {podeBaixar && <td>{l.situacao === "aguardando" && <BaixarIndicacao id={l.id} />}</td>}
             </tr>
           ))}
           {linhas.length === 0 && (
-            <tr><td colSpan={5} className="py-10 text-center text-muted-foreground">{vazio}</td></tr>
+            <tr><td colSpan={podeBaixar ? 6 : 5} className="py-10 text-center text-muted-foreground">{vazio}</td></tr>
           )}
         </tbody>
       </table>

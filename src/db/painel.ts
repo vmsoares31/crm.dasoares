@@ -57,8 +57,8 @@ export async function contagensInicio(): Promise<ContagensInicio> {
     supabase
       .from("contratos").select("id, contrato_documentos!left(id)", { count: "exact", head: true })
       .eq("situacao", "fechado").eq("legado", false).is("contrato_documentos", null),
-    supabase.from("indicacoes").select("id", { count: "exact", head: true }),
-    // indicações que já tiveram crédito liberado (as demais estão aguardando o 1º pagamento)
+    supabase.from("indicacoes").select("id", { count: "exact", head: true }).is("baixada_em", null),
+    // indicações não baixadas que já tiveram crédito liberado (as demais estão aguardando o 1º pagamento)
     buscarTodas<{ indicacao_id: string | null }>(
       (de, ate) =>
         supabase.from("creditos_movimentos").select("indicacao_id").eq("tipo", "liberado").not("indicacao_id", "is", null)

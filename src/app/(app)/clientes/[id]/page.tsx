@@ -149,10 +149,16 @@ export default async function ClientePage({ params }: { params: Promise<{ id: st
               <p className="text-sm text-muted-foreground">Para registrar quem indicou este cliente, ele precisa ter contrato com honorário.</p>
             )
           )}
+          {indicadoPor && (indicadoPor.situacao === "aguardando" || indicadoPor.situacao === "baixada") && (
+            <div className="space-y-2">
+              <h3 className="font-heading text-sm font-bold text-heading">Indicação deste cliente</h3>
+              <div className="-mx-5"><TabelaIndicacoes linhas={[indicadoPor]} vazio="" podeBaixar={podeEditar} /></div>
+            </div>
+          )}
           {indicou.length > 0 && (
             <div className="space-y-2">
               <h3 className="font-heading text-sm font-bold text-heading">Clientes indicados</h3>
-              <div className="-mx-5"><TabelaIndicacoes linhas={indicou} vazio="" /></div>
+              <div className="-mx-5"><TabelaIndicacoes linhas={indicou} vazio="" podeBaixar={podeEditar} /></div>
             </div>
           )}
           {(indicou.length > 0 || extrato.movimentos.length > 0) && (

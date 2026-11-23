@@ -24,7 +24,9 @@ export default async function IndicacoesPage({ searchParams }: { searchParams: P
   const pct = Number(escritorio.indicacao_pct).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
   const total = (s: string) => linhas.filter((l) => l.situacao === s).reduce((t, l) => t + l.valor - l.consumido, 0);
 
-  const filtradas = ["aguardando", "liberado", "usado"].includes(sp.situacao ?? "") ? linhas.filter((l) => l.situacao === sp.situacao) : linhas;
+  const filtradas = ["aguardando", "liberado", "usado", "baixada"].includes(sp.situacao ?? "")
+    ? linhas.filter((l) => l.situacao === sp.situacao)
+    : linhas.filter((l) => l.situacao !== "baixada"); // a lista padrão esconde as baixadas
 
   return (
     <div className="space-y-6">
@@ -47,17 +49,23 @@ export default async function IndicacoesPage({ searchParams }: { searchParams: P
 
       <Card size="sm" className="px-4">
         <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-          <div className="flex gap-1.5"><dt className="text-muted-foreground">Indicações</dt><dd className="font-semibold tabular-nums text-heading">{linhas.length}</dd></div>
+          <div className="flex gap-1.5"><dt className="text-muted-foreground">Indicações</dt><dd className="font-semibold tabular-nums text-heading">{linhas.filter((l) => l.situacao !== "baixada").length}</dd></div>
           <div className="flex gap-1.5"><dt className="text-muted-foreground">Aguardando 1º pagamento</dt><dd className="font-semibold tabular-nums text-heading">{formatarBRL(total("aguardando"))}</dd></div>
-          {sp.situacao && filtradas !== linhas && (
+          {sp.situacao && (
             <div className="flex gap-1.5"><dt className="text-muted-foreground">Filtro</dt><dd className="font-semibold text-heading">{filtradas.length} {sp.situacao} · <Link href="/indicacoes" className="underline underline-offset-2">limpar</Link></dd></div>
           )}
           <div className="flex gap-1.5"><dt className="text-muted-foreground">Liberado a usar</dt><dd className="font-semibold tabular-nums text-heading">{formatarBRL(total("liberado"))}</dd></div>
         </dl>
       </Card>
 
+      <nav className="flex flex-wrap gap-2 text-sm" aria-label="Filtrar por situação">
+        {[["", "Ativas"], ["aguardando", "Aguardando 1º pagamento"], ["liberado", "Liberadas"], ["usado", "Usadas"], ["baixada", "Baixadas"]].map(([v, r]) => (
+          <Link key={v} href={v ? `/indicacoes?situacao=${v}` : "/indicacoes"} className={(sp.situacao ?? "") === v ? "font-bold text-heading underline underline-offset-4" : "link"}>{r}</Link>
+        ))}
+      </nav>
+
       <Card className="py-0">
-        <TabelaIndicacoes linhas={filtradas} vazio={sp.situacao ? "Nenhuma indicação nesta situação." : "Nenhuma indicação registrada."} />
+        <TabelaIndicacoes linhas={filtradas} vazio={sp.situacao ? "Nenhuma indicação nesta situação." : "Nenhuma indicação registrada."} podeBaixar={podeEditar} />
       </Card>
     </div>
   );

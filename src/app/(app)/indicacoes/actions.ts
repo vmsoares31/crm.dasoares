@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { ErroIndicacao, registrarIndicacao } from "@/db/indicacoes";
+import { baixarIndicacao, ErroIndicacao, registrarIndicacao } from "@/db/indicacoes";
 import { formatarBRL } from "@/domain/dinheiro";
 import { registrarAuditoria } from "@/lib/auditoria";
 import { SemPermissaoError, exigirPermissao } from "@/lib/auth";
@@ -20,6 +20,33 @@ async function autorizar(): Promise<string | null> {
       ? "Você não tem permissão para registrar indicações."
       : "Não foi possível verificar suas permissões. Tente novamente.";
   }
+}
+
+export async function baixar(indicacaoId: string, motivo: string): Promise<Resultado> {
+  const negado = await autorizar();
+  if (negado) return { erro: negado.replace("registrar", "baixar") };
+  if (!UUID.test(indicacaoId)) return { erro: "Indicação inválida." };
+  const m = motivo.trim();
+  if (!m) return { erro: "Informe o motivo." };
+
+  try {
+    await baixarIndicacao(indicacaoId, m);
+  } catch (e) {
+    if (e instanceof ErroIndicacao) return { erro: e.message };
+    console.error("[indicacoes] baixar:", e);
+    return { erro: "Não foi possível concluir a operação. Tente novamente." };
+  }
+
+  try {
+    await registrarAuditoria("indicacao.baixar", "indicacoes", indicacaoId, { motivo: m });
+  } catch (e) {
+    console.error("[indicacoes] auditoria:", e);
+  }
+
+  revalidatePath("/indicacoes");
+  revalidatePath("/clientes", "layout");
+  revalidatePath("/");
+  return { ok: true, mensagem: "Indicação baixada." };
 }
 
 export async function registrar(_: Resultado, dados: FormData): Promise<Resultado> {

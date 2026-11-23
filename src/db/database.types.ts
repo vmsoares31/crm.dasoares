@@ -657,29 +657,38 @@ export type Database = {
         Row: {
           atualizado_em: string
           atualizado_por: string | null
+          baixada_em: string | null
+          baixada_por: string | null
           criado_em: string
           criado_por: string | null
           id: string
           indicado_id: string
           indicador_id: string
+          motivo_baixa: string | null
         }
         Insert: {
           atualizado_em?: string
           atualizado_por?: string | null
+          baixada_em?: string | null
+          baixada_por?: string | null
           criado_em?: string
           criado_por?: string | null
           id?: string
           indicado_id: string
           indicador_id: string
+          motivo_baixa?: string | null
         }
         Update: {
           atualizado_em?: string
           atualizado_por?: string | null
+          baixada_em?: string | null
+          baixada_por?: string | null
           criado_em?: string
           criado_por?: string | null
           id?: string
           indicado_id?: string
           indicador_id?: string
+          motivo_baixa?: string | null
         }
         Relationships: [
           {
@@ -1117,6 +1126,10 @@ export type Database = {
       }
     }
     Functions: {
+      baixar_indicacao: {
+        Args: { p_indicacao_id: string; p_motivo: string }
+        Returns: undefined
+      }
       cancelar_cobranca: {
         Args: { p_cobranca_id: string; p_motivo: string }
         Returns: Json

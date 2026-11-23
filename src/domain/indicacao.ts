@@ -65,7 +65,7 @@ export function cobrancaQueLibera<T extends CobrancaDoIndicado>(cobrancasDoIndic
 // Situação das indicações na lista
 // ---------------------------------------------------------------------------
 
-export type SituacaoIndicacao = "aguardando" | "liberado" | "usado";
+export type SituacaoIndicacao = "aguardando" | "liberado" | "usado" | "baixada";
 
 export interface IndicacaoComCredito {
   id: string;
@@ -74,12 +74,15 @@ export interface IndicacaoComCredito {
   liberado: Centavos | null;
   /** Momento da liberação (ordena o consumo). */
   liberadoEm: string | null;
+  /** Indicação baixada (encerrada sem pagamento): nunca libera nem consome crédito. */
+  baixada?: boolean;
 }
 
 export interface MovimentoDeUso { clienteId: string; tipo: "gerado" | "liberado" | "usado" | "estornado"; valor: Centavos }
 
 /**
  * Situação de cada indicação:
+ * - `baixada`: encerrada manualmente sem pagamento (precede as demais; fora do consumo FIFO);
  * - `aguardando`: sem movimento `liberado` (1º pagamento do indicado ainda não quitado);
  * - `usado`: o crédito liberado foi consumido por inteiro;
  * - `liberado`: liberado e ainda com saldo (total ou parcial).
@@ -98,7 +101,7 @@ export function situacoesDasIndicacoes(
   }
   const out: Record<string, { situacao: SituacaoIndicacao; consumido: Centavos }> = {};
   const liberadas = indicacoes
-    .filter((i) => i.liberado !== null)
+    .filter((i) => !i.baixada && i.liberado !== null)
     .sort((a, b) => (a.liberadoEm ?? "").localeCompare(b.liberadoEm ?? "") || a.id.localeCompare(b.id));
   const restante: Record<string, Centavos> = {};
   for (const i of liberadas) {
@@ -107,6 +110,9 @@ export function situacoesDasIndicacoes(
     restante[i.indicadorId] = disp - consumido;
     out[i.id] = { situacao: consumido >= i.liberado! ? "usado" : "liberado", consumido };
   }
-  for (const i of indicacoes) if (i.liberado === null) out[i.id] = { situacao: "aguardando", consumido: 0 };
+  for (const i of indicacoes) {
+    if (i.baixada) out[i.id] = { situacao: "baixada", consumido: 0 };
+    else if (i.liberado === null) out[i.id] = { situacao: "aguardando", consumido: 0 };
+  }
   return out;
 }

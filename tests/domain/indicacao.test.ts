@@ -114,4 +114,18 @@ describe("situacoesDasIndicacoes", () => {
       i3: { situacao: "liberado", consumido: 0 },
     });
   });
+
+  it("baixada → 'baixada' (precede aguardando), sem consumo", () => {
+    const r = situacoesDasIndicacoes([{ ...ind("i1", "A", null), baixada: true }], [{ clienteId: "A", tipo: "usado", valor: 5000 }]);
+    expect(r.i1).toEqual({ situacao: "baixada", consumido: 0 });
+  });
+
+  it("baixada fica fora do consumo FIFO", () => {
+    const r = situacoesDasIndicacoes(
+      [{ ...ind("i0", "A", 9000, "0"), baixada: true }, ind("i1", "A", 15000, "1")],
+      [{ clienteId: "A", tipo: "usado", valor: 15000 }],
+    );
+    expect(r.i0).toEqual({ situacao: "baixada", consumido: 0 });
+    expect(r.i1).toEqual({ situacao: "usado", consumido: 15000 });
+  });
 });

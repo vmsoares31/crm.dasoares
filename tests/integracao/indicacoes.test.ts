@@ -2,7 +2,7 @@
  * Integração contra o banco de DESENVOLVIMENTO (que tem clientes reais importados).
  * Só roda com INTEGRACAO=1 e um usuário ativo com permissão de clientes e financeiro:
  *   INTEGRACAO=1 INTEGRACAO_EMAIL=... INTEGRACAO_SENHA=... npx vitest run tests/integracao/indicacoes.test.ts
- * Requer as migrations 0006 a 0009 aplicadas e escritorio.indicacao_pct = 50.
+ * Requer as migrations 0006 a 0010 aplicadas e escritorio.indicacao_pct = 50.
  *
  * NUNCA apaga tabelas inteiras: cria clientes próprios ("TESTE-INTEGRACAO IND …", que não
  * casam com os padrões "TESTE-INTEGRACAO _" e "TESTE-INTEGRACAO BAIXA%" dos outros arquivos)
@@ -175,5 +175,35 @@ describe.skipIf(process.env.INTEGRACAO !== "1")("indicações e extrato de créd
     const { data: denovo } = await supabase.rpc("reavaliar_credito_indicacao", { p_indicacao_id: ind!.id }).throwOnError();
     expect(Number(denovo)).toBe(0);
     expect((await extratoCredito(indicadorId)).saldoDisponivel).toBe(15000);
+  });
+
+  it("baixar indicação aguardando → a 1ª cobrança paga depois não libera crédito", async () => {
+    const { baixarIndicacao, extratoCredito, listarIndicacoes, registrarIndicacao } = await import("@/db/indicacoes");
+    const { registrarBaixa } = await import("@/db/cobrancas");
+    const { indicacaoId } = await registrarIndicacao(indicadorId, indicadoId);
+    await expect(baixarIndicacao(indicacaoId, "  ")).rejects.toThrow("Informe o motivo.");
+    await baixarIndicacao(indicacaoId, "indicado nunca pagou");
+    await expect(baixarIndicacao(indicacaoId, "de novo")).rejects.toThrow("Indicação já baixada.");
+
+    const cobranca = await criarCobranca("2099-02-20", "emitida");
+    expect(await registrarBaixa(cobranca, hojeSP(), 30000)).toMatchObject({ situacao: "paga", creditoLiberado: 0 });
+    const { data: reav } = await supabase.rpc("reavaliar_credito_indicacao", { p_indicacao_id: indicacaoId }).throwOnError();
+    expect(Number(reav)).toBe(0);
+
+    const extrato = await extratoCredito(indicadorId);
+    expect(extrato.saldoDisponivel).toBe(0);
+    expect(extrato.movimentos.filter((m) => m.tipo === "liberado")).toHaveLength(0);
+    expect(extrato.aLiberar).toBe(0);
+    expect((await listarIndicacoes({ clienteId: indicadorId }))[0]).toMatchObject({
+      situacao: "baixada", baixa: expect.objectContaining({ motivo: "indicado nunca pagou" }),
+    });
+  });
+
+  it("baixar depois de liberado → erro", async () => {
+    const { baixarIndicacao, registrarIndicacao } = await import("@/db/indicacoes");
+    await criarCobranca("2099-02-20", "paga");
+    const { indicacaoId, liberado } = await registrarIndicacao(indicadorId, indicadoId);
+    expect(liberado).toBe(15000);
+    await expect(baixarIndicacao(indicacaoId, "tarde demais")).rejects.toThrow("Crédito já liberado: a indicação não pode ser baixada.");
   });
 });
