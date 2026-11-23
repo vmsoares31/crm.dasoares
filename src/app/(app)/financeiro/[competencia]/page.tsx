@@ -57,7 +57,12 @@ export default async function CompetenciaPage({ params }: { params: Promise<{ co
       <CabecalhoPagina
         titulo={`Fechamento · ${rotulo(competencia)}`}
         descricao="Abra o mês para gerar uma cobrança prevista por contrato fechado de cliente ativo. Revise, ajuste itens ou exclua clientes do mês antes de exportar."
-        acoes={podeOperar ? <BotoesCompetencia competencia={competencia} temCobrancas={cobrancas.length > 0} previstas={previstas} /> : undefined}
+        acoes={podeOperar ? (
+          <>
+            {previstas > 0 && <Link href={`/financeiro/${competencia}/exportar`} className={buttonVariants({ variant: "outline" })}>Exportar</Link>}
+            <BotoesCompetencia competencia={competencia} temCobrancas={cobrancas.length > 0} previstas={previstas} />
+          </>
+        ) : undefined}
       />
 
       <Card size="sm" className="px-4">
@@ -79,7 +84,7 @@ export default async function CompetenciaPage({ params }: { params: Promise<{ co
           <span>
             {extrasPendentes} extra(s) pendente(s) nesta competência ainda fora das cobranças.{" "}
             <Link href={`/extras?competencia=${competencia}`} className="font-semibold underline underline-offset-2">Ver extras</Link>
-            {podeOperar && " · use “Regerar previstas” para incluí-los."}
+            {podeOperar && " · “Regerar previstas” só inclui os de clientes com cobrança prevista no mês; os de clientes excluídos do mês ou com cobrança já emitida continuam pendentes (cancele e relance em outra competência)."}
           </span>
         </p>
       )}
