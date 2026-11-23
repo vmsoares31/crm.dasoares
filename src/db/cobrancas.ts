@@ -51,8 +51,8 @@ async function carregarDados(supabase: Supabase, competencia: Competencia, reger
       if (ids) q = q.in("cliente_id", ids);
       return q.order("id").range(de, ate) as never;
     }),
-    buscarTodas<Pick<Tables<"cobrancas">, "id" | "cliente_id" | "contrato_id" | "origem" | "parcela_id" | "situacao">>((de, ate) => {
-      let q = supabase.from("cobrancas").select("id, cliente_id, contrato_id, origem, parcela_id, situacao").eq("competencia", competencia);
+    buscarTodas<Pick<Tables<"cobrancas">, "id" | "cliente_id" | "contrato_id" | "origem" | "parcela_id" | "situacao" | "excluida_do_mes">>((de, ate) => {
+      let q = supabase.from("cobrancas").select("id, cliente_id, contrato_id, origem, parcela_id, situacao, excluida_do_mes").eq("competencia", competencia);
       if (ids) q = q.in("cliente_id", ids);
       return q.order("id").range(de, ate) as never;
     }),
@@ -85,7 +85,7 @@ async function carregarDados(supabase: Supabase, competencia: Competencia, reger
     })),
     cobrancasExistentes: cobrancas.map((c): CobrancaExistente => ({
       id: c.id, clienteId: c.cliente_id, contratoId: c.contrato_id, origem: c.origem as CobrancaExistente["origem"],
-      parcelaId: c.parcela_id, situacao: c.situacao as SituacaoCobranca,
+      parcelaId: c.parcela_id, situacao: c.situacao as SituacaoCobranca, excluidaDoMes: c.excluida_do_mes,
     })),
     extras: extras.map((e): ExtraDaCompetencia => ({
       id: e.id, clienteId: e.cliente_id, descricao: e.descricao, valor: e.valor, competencia: e.competencia,
@@ -124,7 +124,10 @@ export function abrirCompetencia(competencia: string, opcoes?: OpcoesCompetencia
   return gravar(competencia, false, opcoes);
 }
 
-/** Refaz as cobranças previstas/quitadas por crédito; emitidas, pagas e canceladas ficam intactas. */
+/**
+ * Refaz as cobranças previstas/quitadas por crédito; emitidas, pagas e canceladas ficam intactas.
+ * Canceladas pelo "Cancelar" geral (não excluídas do mês) ganham uma substituta.
+ */
 export function regerarCompetencia(competencia: string, opcoes?: OpcoesCompetencia): Promise<ResultadoCompetencia> {
   return gravar(competencia, true, opcoes);
 }

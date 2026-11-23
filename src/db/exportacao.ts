@@ -66,6 +66,25 @@ export async function idsDoUltimoArquivo(competencia: string): Promise<string[]>
   return Array.isArray(ids) ? ids.filter((i): i is string => typeof i === "string") : [];
 }
 
+/**
+ * Quantas cobranças do último arquivo exportado da competência continuam 'prevista'
+ * (exportadas mas não marcadas como emitidas). Regerar apagaria essas cobranças.
+ */
+export async function contarExportadasPrevistas(competencia: string): Promise<number> {
+  const ids = await idsDoUltimoArquivo(competencia);
+  if (ids.length === 0) return 0;
+  const supabase = await createServerClient();
+  let total = 0;
+  for (const parte of lotes(ids)) {
+    const { count, error } = await supabase
+      .from("cobrancas").select("id", { count: "exact", head: true })
+      .in("id", parte).eq("competencia", competencia).eq("situacao", "prevista");
+    if (error) throw new Error(error.message);
+    total += count ?? 0;
+  }
+  return total;
+}
+
 function lotes<T>(itens: T[]): T[][] {
   const r: T[][] = [];
   for (let i = 0; i < itens.length; i += LOTE) r.push(itens.slice(i, i + LOTE));

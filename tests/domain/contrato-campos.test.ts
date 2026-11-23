@@ -62,4 +62,30 @@ describe("camposContrato", () => {
     expect(() => camposContrato(escritorioFicticio, c, { ...c.contrato!, data_inicio: null }, [], "2026-11-23")).toThrow("Contrato sem data de início");
     expect(() => camposContrato(escritorioFicticio, clienteFicticio({ regime: null }), c.contrato!, [], "2026-11-23")).toThrow("Cliente sem regime tributário");
   });
+
+  it("rótulo do documento do contratante: CNPJ (14 dígitos) ou CPF (11 dígitos)", () => {
+    const pj = clienteFicticio();
+    expect(camposContrato(escritorioFicticio, pj, pj.contrato!, [], "2026-11-23").rotulo_documento).toBe("CNPJ");
+    const pf = clienteFicticio({ documento: "52998224725" });
+    const f = camposContrato(escritorioFicticio, pf, pf.contrato!, [], "2026-11-23");
+    expect(f.rotulo_documento).toBe("CPF");
+    expect(f.contratante_cnpj).toBe("529.982.247-25");
+    const formatado = clienteFicticio({ documento: "529.982.247-25" });
+    expect(camposContrato(escritorioFicticio, formatado, formatado.contrato!, [], "2026-11-23").rotulo_documento).toBe("CPF");
+  });
+
+  it("cadastro do escritório incompleto lança erro listando os campos", () => {
+    const c = clienteFicticio();
+    const gerar = (e: Partial<typeof escritorioFicticio>) =>
+      () => camposContrato({ ...escritorioFicticio, ...e }, c, c.contrato!, [], "2026-11-23");
+    expect(gerar({ razao_social: " " })).toThrow("Cadastro do escritório incompleto: razão social");
+    expect(gerar({ cnpj: "" })).toThrow("Cadastro do escritório incompleto: CNPJ");
+    expect(gerar({ logradouro: "", numero: "", complemento: "" })).toThrow("Cadastro do escritório incompleto: endereço");
+    expect(gerar({ uf: "" })).toThrow("Cadastro do escritório incompleto: cidade/UF");
+    expect(gerar({ cidade: "" })).toThrow("Cadastro do escritório incompleto: cidade/UF");
+    expect(gerar({ responsavel_tecnico: "" })).toThrow("Cadastro do escritório incompleto: responsável técnico");
+    expect(gerar({ crc: "  " })).toThrow("Cadastro do escritório incompleto: CRC");
+    expect(gerar({ razao_social: "", crc: "" })).toThrow("Cadastro do escritório incompleto: razão social, CRC");
+    expect(gerar({ bairro: "", cep: "", cidade_foro: "" })).not.toThrow();
+  });
 });

@@ -11,6 +11,8 @@ import type { Centavos, Competencia, ItemCobranca, SituacaoCobranca, TipoItem } 
 export interface CobrancaExistente {
   id: string; clienteId: string; contratoId: string;
   origem: "mensal" | "parcela_avulsa"; parcelaId: string | null; situacao: SituacaoCobranca;
+  /** Cancelada por "Excluir do mês" (não deve ser refeita na competência). */
+  excluidaDoMes?: boolean;
 }
 export interface ExtraDaCompetencia {
   id: string; clienteId: string; descricao: string; valor: Centavos; competencia: string;
@@ -36,6 +38,15 @@ export interface PlanoCompetencia extends ResultadoFechamento {
 /** Situações que a regeração pode apagar e refazer. */
 export const SITUACOES_REGERAVEIS: readonly SituacaoCobranca[] = ["prevista", "quitada_por_credito"];
 
+/**
+ * Uma cobrança existente impede gerar outra com a mesma chave quando não está cancelada,
+ * ou quando foi cancelada por "Excluir do mês". Cancelada pelo "Cancelar" geral, a chave fica
+ * livre e o próximo "Abrir mês"/"Regerar previstas" gera a substituta (reemissão).
+ */
+export function bloqueiaChave(c: Pick<CobrancaExistente, "situacao" | "excluidaDoMes">): boolean {
+  return c.situacao !== "cancelada" || c.excluidaDoMes === true;
+}
+
 export function chaveCobranca(c: { contratoId: string; origem: string; parcelaId: string | null }): string {
   return `${c.contratoId}|${c.origem}|${c.parcelaId ?? ""}`;
 }
@@ -57,7 +68,8 @@ export function saldoDeCredito(movimentos: MovimentoCredito[]): Record<string, C
  * - Abrir: não mexe no que já existe; só monta cobranças para contrato/origem/parcela sem cobrança.
  * - Regerar: considera apagadas as cobranças `prevista`/`quitada_por_credito` (seus extras voltam a
  *   pendente e o crédito usado volta ao saldo) e monta de novo, exceto onde já existe cobrança
- *   emitida, paga, paga parcialmente ou cancelada naquela competência/origem.
+ *   emitida, paga, paga parcialmente ou excluída do mês naquela competência/origem.
+ * - Cobrança cancelada pelo "Cancelar" geral não bloqueia: abrir/regerar gera a substituta.
  * - Só entram extras `pendente` da competência (mais os que voltam a pendente pela regeração).
  *   Extras de clientes não gerados, ou cuja cobrança foi mantida, continuam pendentes.
  */
@@ -65,7 +77,7 @@ export function planejarCompetencia(d: DadosCompetencia): PlanoCompetencia {
   const removiveis = d.regerar ? d.cobrancasExistentes.filter((c) => SITUACOES_REGERAVEIS.includes(c.situacao)) : [];
   const idsRemovidos = new Set(removiveis.map((c) => c.id));
   const mantidas = d.cobrancasExistentes.filter((c) => !idsRemovidos.has(c.id));
-  const bloqueadas = new Set(mantidas.map(chaveCobranca));
+  const bloqueadas = new Set(mantidas.filter(bloqueiaChave).map(chaveCobranca));
 
   const extras: ExtraPendente[] = d.extras
     .filter((e) => e.competencia === d.competencia)

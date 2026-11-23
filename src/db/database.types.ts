@@ -246,6 +246,7 @@ export type Database = {
           criado_por: string | null
           descricao: string
           emitida_em: string | null
+          excluida_do_mes: boolean
           id: string
           motivo_cancelamento: string | null
           motivo_dispensa: string | null
@@ -268,6 +269,7 @@ export type Database = {
           criado_por?: string | null
           descricao?: string
           emitida_em?: string | null
+          excluida_do_mes?: boolean
           id?: string
           motivo_cancelamento?: string | null
           motivo_dispensa?: string | null
@@ -290,6 +292,7 @@ export type Database = {
           criado_por?: string | null
           descricao?: string
           emitida_em?: string | null
+          excluida_do_mes?: boolean
           id?: string
           motivo_cancelamento?: string | null
           motivo_dispensa?: string | null

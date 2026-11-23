@@ -2,7 +2,7 @@
  * Integração contra o banco de DESENVOLVIMENTO (que tem clientes reais importados).
  * Só roda com INTEGRACAO=1 e um usuário ativo com permissão financeira:
  *   INTEGRACAO=1 INTEGRACAO_EMAIL=... INTEGRACAO_SENHA=... npx vitest run tests/integracao
- * Requer as migrations 0006 e 0007 aplicadas.
+ * Requer as migrations 0006, 0007 e 0011 aplicadas.
  *
  * NUNCA apaga tabelas inteiras: cria clientes próprios ("TESTE-INTEGRACAO …") na competência
  * 2099-01, restringe abrir/regerar a esses clientes e, na limpeza, apaga só essas linhas.
@@ -137,5 +137,63 @@ describe.skipIf(!ATIVO)("competência (integração)", () => {
     const { data: e2 } = await supabase.from("lancamentos_extras").select("situacao, cobranca_id").eq("id", x2).single().throwOnError();
     expect(e2).toEqual({ situacao: "incluido", cobranca_id: cobC2.id });
     expect(cobC2.total).toBe(27000);
+  });
+
+  it("cancelada pelo “Cancelar” é reemitida ao abrir; excluída do mês não é", async () => {
+    const { abrirCompetencia, cancelarCobranca, cancelarCobrancaPrevista } = await import("@/db/cobrancas");
+    await abrirCompetencia(COMPETENCIA, { clienteIds });
+    const [c1, c2] = clienteIds;
+    const doCliente = async (id: string) => (await cobrancasDoTeste()).filter((c) => c.cliente_id === id);
+
+    const k1 = (await doCliente(c1))[0];
+    await cancelarCobranca(k1.id, "reemitir");
+    const k2 = (await doCliente(c2))[0];
+    await cancelarCobrancaPrevista(k2.id, "fora do mês");
+
+    const { data: marcadas } = await supabase.from("cobrancas").select("id, excluida_do_mes").in("id", [k1.id, k2.id]).throwOnError();
+    expect(Object.fromEntries((marcadas ?? []).map((m) => [m.id, m.excluida_do_mes]))).toEqual({ [k1.id]: false, [k2.id]: true });
+
+    const r = await abrirCompetencia(COMPETENCIA, { clienteIds });
+    expect(r.cobrancas.map((c) => c.clienteId)).toEqual([c1]);
+    expect((await doCliente(c1)).map((c) => c.situacao).sort()).toEqual(["cancelada", "prevista"]);
+    expect((await doCliente(c2)).map((c) => c.situacao)).toEqual(["cancelada"]);
+    // e abrir de novo não duplica a substituta
+    expect((await abrirCompetencia(COMPETENCIA, { clienteIds })).cobrancas).toHaveLength(0);
+  });
+
+  it("salvar_contrato atualiza a parcela no lugar e não remove parcela já cobrada", async () => {
+    const { abrirCompetencia } = await import("@/db/cobrancas");
+    const [c1] = clienteIds;
+    const { data: k } = await supabase.from("contratos").select("*").eq("cliente_id", c1).single().throwOnError();
+    const campos = (total: number) => ({
+      situacao: k!.situacao, honorario: k!.honorario, dia_vencimento: k!.dia_vencimento, data_inicio: k!.data_inicio,
+      carteira_id: k!.carteira_id, tipo_cobranca: k!.tipo_cobranca, email_cobranca: k!.email_cobranca,
+      parcela_adicional_total: total, legado: k!.legado, encerrado_em: k!.encerrado_em,
+    });
+    const salvar = (total: number, parcelas: unknown[]) =>
+      supabase.rpc("salvar_contrato", { p_contrato_id: k!.id, p_campos: campos(total), p_parcelas: parcelas as never, p_motivo: "" });
+
+    try {
+      expect((await salvar(12500, [{ mes: 1, valor: 12500, forma: "data_propria", dia: 10 }])).error).toBeNull();
+      const { data: [parcela] } = await supabase.from("parcelas_adicionais").select("id").eq("contrato_id", k!.id).throwOnError() as { data: { id: string }[] };
+      await abrirCompetencia(COMPETENCIA, { clienteIds: [c1] });
+      const avulsa = (await cobrancasDoTeste()).find((c) => c.origem === "parcela_avulsa")!;
+      expect(avulsa.parcela_id).toBe(parcela.id);
+
+      // salvar de novo com o id: mesma parcela, cobrança continua vinculada; abrir não duplica
+      expect((await salvar(13000, [{ id: parcela.id, mes: 1, valor: 13000, forma: "data_propria", dia: 10 }])).error).toBeNull();
+      const { data: depois } = await supabase.from("parcelas_adicionais").select("id, valor").eq("contrato_id", k!.id).throwOnError();
+      expect(depois).toEqual([{ id: parcela.id, valor: 13000 }]);
+      const { data: cob } = await supabase.from("cobrancas").select("parcela_id").eq("id", avulsa.id).single().throwOnError();
+      expect(cob!.parcela_id).toBe(parcela.id);
+      expect((await abrirCompetencia(COMPETENCIA, { clienteIds: [c1] })).cobrancas).toHaveLength(0);
+
+      // remover a parcela cobrada falha
+      const { error } = await salvar(0, []);
+      expect(error?.message).toBe("Parcela já cobrada: cancele a cobrança antes de removê-la.");
+    } finally {
+      await limparFixtures(clienteIds);
+      await salvar(0, []);
+    }
   });
 });

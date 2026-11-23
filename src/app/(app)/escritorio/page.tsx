@@ -16,6 +16,7 @@ const pct = (n: number) => String(n).replace(".", ",");
 export default async function EscritorioPage() {
   const usuario = await usuarioAtual();
   const somenteLeitura = !usuario || !pode(usuario.permissoes, "escritorio.editar");
+  const podeReajustar = !!usuario && pode(usuario.permissoes, "reajuste.aplicar");
   const e = await obterEscritorio();
 
   const valores: Record<string, string> = {
@@ -46,7 +47,7 @@ export default async function EscritorioPage() {
             <Link href="/escritorio/servicos-extras" className={buttonVariants({ variant: "outline" })}>
               <Layers aria-hidden /> Serviços extras
             </Link>
-            {!somenteLeitura && (
+            {podeReajustar && (
               <Link href="/escritorio/reajuste" className={buttonVariants({ variant: "outline" })}>
                 <TrendingUp aria-hidden /> Reajuste anual
               </Link>

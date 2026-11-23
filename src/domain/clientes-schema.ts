@@ -74,7 +74,7 @@ export const linhaMassaSchema = z.object({
   honorario: texto
     .refine((s) => s === "" || /\d/.test(s), "Honorário inválido.")
     .transform((s) => (s === "" ? null : parseBRL(s)))
-    .refine((v) => v === null || v >= 0, "Honorário não pode ser negativo."),
+    .refine((v) => v === null || v > 0, "Informe um honorário maior que zero."),
   dia_vencimento: texto
     .refine((s) => s === "" || (/^\d+$/.test(s) && Number(s) >= 1 && Number(s) <= 31), "Dia deve estar entre 1 e 31.")
     .transform((s) => (s === "" ? null : Number(s))),

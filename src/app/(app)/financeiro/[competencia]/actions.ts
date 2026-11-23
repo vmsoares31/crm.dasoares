@@ -6,12 +6,17 @@ import {
   ErroCobranca, abrirCompetencia, cancelarCobrancaPrevista, editarCobranca, regerarCompetencia,
   type ResultadoCompetencia,
 } from "@/db/cobrancas";
+import { contarExportadasPrevistas } from "@/db/exportacao";
 import { parseBRL } from "@/domain/dinheiro";
 import type { ItemCobranca, TipoItem } from "@/domain/tipos";
 import { registrarAuditoria } from "@/lib/auditoria";
 import { SemPermissaoError, exigirPermissao } from "@/lib/auth";
 
-export type ResultadoAcao = { ok?: boolean; erro?: string; mensagem?: string; naoGerados?: ResultadoCompetencia["naoGerados"] };
+export type ResultadoAcao = {
+  ok?: boolean; erro?: string; mensagem?: string; naoGerados?: ResultadoCompetencia["naoGerados"];
+  /** Regerar recusado: cobranças do último arquivo exportado ainda previstas (pede confirmação). */
+  exportadasPendentes?: number;
+};
 export type ItemEditado = { tipo: string; descricao: string; valor: string; refId?: string | null };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -43,10 +48,22 @@ function resumo(r: ResultadoCompetencia, regerar: boolean): string {
   return `${partes.join(" · ")}.`;
 }
 
-async function executar(competencia: string, regerar: boolean): Promise<ResultadoAcao> {
+async function executar(competencia: string, regerar: boolean, confirmarDescarteExportacao = false): Promise<ResultadoAcao> {
   const negado = await autorizar();
   if (negado) return { erro: negado };
   if (!COMPETENCIA.test(competencia)) return { erro: "Competência inválida." };
+
+  // Regerar apaga previstas; se alguma está no último arquivo exportado e ainda não foi marcada
+  // como emitida, o boleto pode já existir no banco — só segue com confirmação explícita.
+  if (regerar && confirmarDescarteExportacao !== true) {
+    let pendentes: number;
+    try {
+      pendentes = await contarExportadasPrevistas(competencia);
+    } catch (e) {
+      return falha("verificar exportação", e);
+    }
+    if (pendentes > 0) return { exportadasPendentes: pendentes };
+  }
 
   let r: ResultadoCompetencia;
   try {
@@ -60,6 +77,7 @@ async function executar(competencia: string, regerar: boolean): Promise<Resultad
     removidas: r.removidas,
     mantidas: r.mantidas,
     nao_gerados: r.naoGerados.map((n) => ({ cliente_id: n.clienteId, motivo: n.motivo })),
+    ...(regerar && confirmarDescarteExportacao ? { descarte_exportacao_confirmado: true } : {}),
   });
   revalidatePath(`/financeiro/${competencia}`);
   revalidatePath("/extras");
@@ -70,8 +88,11 @@ export async function abrirMes(competencia: string): Promise<ResultadoAcao> {
   return executar(competencia, false);
 }
 
-export async function regerarPrevistas(competencia: string): Promise<ResultadoAcao> {
-  return executar(competencia, true);
+export async function regerarPrevistas(
+  competencia: string,
+  opcoes: { confirmarDescarteExportacao?: boolean } = {},
+): Promise<ResultadoAcao> {
+  return executar(competencia, true, opcoes?.confirmarDescarteExportacao === true);
 }
 
 export async function salvarItens(competencia: string, id: string, itens: ItemEditado[]): Promise<ResultadoAcao> {

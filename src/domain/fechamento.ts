@@ -29,7 +29,8 @@ const MINIMO_COBRANCA: Centavos = 2000;
 
 function faltando(c: ContratoFechamento): string[] {
   const f: string[] = [];
-  if (c.honorario === null) f.push("honorário");
+  // honorário zero ou negativo é tratado como não informado (não gera cobrança de R$ 0)
+  if (c.honorario === null || c.honorario <= 0) f.push("honorário");
   if (c.diaVencimento === null) f.push("dia de vencimento");
   if (c.carteiraId === null) f.push("carteira");
   if (c.tipoCobranca === null) f.push("tipo de cobrança");

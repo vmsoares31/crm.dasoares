@@ -104,7 +104,11 @@ export async function salvarContrato(_: Resultado, dados: FormData): Promise<Res
     p_parcelas: parcelas,
     p_motivo: motivo ?? "",
   });
-  if (error) return { erro: falha("salvar contrato", error.message) };
+  if (error) {
+    // 22023: regra de negócio do salvar_contrato (ex.: parcela já cobrada) — mensagem para o usuário.
+    if (error.code === "22023") return { erro: error.message };
+    return { erro: falha("salvar contrato", error.message) };
+  }
 
   await registrarAuditoria("contrato.atualizar", "contratos", id, { ...campos, parcelas });
   revalidatePath(`/contratos/${id}`);

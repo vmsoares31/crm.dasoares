@@ -10,6 +10,7 @@ export type SituacaoCobranca = 'prevista' | 'emitida' | 'paga' | 'paga_parcial'
   | 'cancelada' | 'quitada_por_credito';                  // "atrasada" é derivada
 export type TipoItem = 'mensalidade' | 'extra' | 'parcela_adicional' | 'desconto_indicacao';
 
-export interface ParcelaAdicional { mes: number; valor: Centavos;
+/** id: parcela já gravada (ausente = parcela nova, ainda não salva). */
+export interface ParcelaAdicional { id?: string; mes: number; valor: Centavos;
   forma: 'junto_mensalidade' | 'data_propria'; dia: number | null } // dia null = último dia
 export interface ItemCobranca { tipo: TipoItem; descricao: string; valor: Centavos; refId?: string }

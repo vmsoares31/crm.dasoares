@@ -16,6 +16,7 @@ export type ItemTabela = { tipo: string; descricao: string; valor: number; refId
 export type CobrancaTabela = {
   id: string; clienteNome: string; origem: string; vencimento: string; total: number; situacao: string;
   atrasada: boolean; motivoCancelamento: string | null; descricao: string; itens: ItemTabela[];
+  excluidaDoMes: boolean;
 };
 
 const SITUACOES: Record<string, { rotulo: string; tom: TomSelo }> = {
@@ -45,7 +46,11 @@ export function TabelaCobrancas({ competencia, cobrancas, podeOperar }: { compet
           </thead>
           <tbody>
             {cobrancas.map((c) => {
-              const s = c.atrasada ? { rotulo: "Atrasada", tom: "perigo" as TomSelo } : (SITUACOES[c.situacao] ?? { rotulo: c.situacao, tom: "neutro" as TomSelo });
+              const s = c.atrasada
+                ? { rotulo: "Atrasada", tom: "perigo" as TomSelo }
+                : c.situacao === "cancelada" && c.excluidaDoMes
+                  ? { rotulo: "Excluída do mês", tom: "neutro" as TomSelo }
+                  : (SITUACOES[c.situacao] ?? { rotulo: c.situacao, tom: "neutro" as TomSelo });
               const expandida = aberta === c.id;
               return (
                 <Fragment key={c.id}>
@@ -226,7 +231,7 @@ function ExcluirDoMes({ competencia, id, aoFechar }: { competencia: string; id: 
       <Button type="submit" size="sm" variant="destructive" disabled={pendente}>Confirmar exclusão</Button>
       <Button type="button" size="sm" variant="ghost" disabled={pendente} onClick={aoFechar}>Voltar</Button>
       {erro && <Mensagem tipo="erro">{erro}</Mensagem>}
-      <p className="w-full text-xs text-muted-foreground">A cobrança fica cancelada; extras voltam a pendentes e o crédito de indicação usado volta ao saldo.</p>
+      <p className="w-full text-xs text-muted-foreground">A cobrança fica cancelada e não é gerada de novo neste mês (nem ao regerar); extras voltam a pendentes e o crédito de indicação usado volta ao saldo.</p>
     </form>
   );
 }

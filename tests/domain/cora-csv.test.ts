@@ -36,6 +36,20 @@ describe("gerarCsvCora", () => {
     expect(r.erros).toEqual([{ cobrancaId: "c1", erro: "Valor abaixo de R$ 20,00" }]);
     expect(r.csv).not.toContain("19,99");
   });
+  it("documento vazio vira erro 'CPF/CNPJ ausente'", () => {
+    for (const documento of ["", "  ", "./-"]) {
+      const r = gerarCsvCora([{ ...base, documento }], HOJE);
+      expect(r.erros).toEqual([{ cobrancaId: "c1", erro: "CPF/CNPJ ausente" }]);
+      expect(r.csv).not.toContain("Renato");
+    }
+  });
+  it("nome do pagador vazio vira erro 'Nome do pagador ausente'", () => {
+    for (const nomePagador of ["", "   "]) {
+      const r = gerarCsvCora([{ ...base, nomePagador }], HOJE);
+      expect(r.erros).toEqual([{ cobrancaId: "c1", erro: "Nome do pagador ausente" }]);
+      expect(r.csv).not.toContain("40342580000110");
+    }
+  });
   it("vencimento no passado vira erro", () => {
     expect(gerarCsvCora([{ ...base, vencimento: "2027-01-09" }], HOJE).erros[0].erro).toBe("Vencimento no passado");
     expect(gerarCsvCora([{ ...base, vencimento: HOJE }], HOJE).erros).toEqual([]);

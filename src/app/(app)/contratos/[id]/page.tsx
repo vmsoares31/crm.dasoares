@@ -48,7 +48,7 @@ export default async function ContratoPage({ params }: { params: Promise<{ id: s
 
   const reais = (c: number | null) => (c == null ? "" : (c / 100).toFixed(2).replace(".", ","));
   const parcelas: ParcelaAdicional[] = k.parcelas.map((p) => ({
-    mes: p.mes, valor: p.valor, forma: p.forma as ParcelaAdicional["forma"], dia: p.dia,
+    id: p.id, mes: p.mes, valor: p.valor, forma: p.forma as ParcelaAdicional["forma"], dia: p.dia,
   }));
 
   return (

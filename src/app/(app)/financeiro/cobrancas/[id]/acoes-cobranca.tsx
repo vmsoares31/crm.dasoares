@@ -55,7 +55,7 @@ export function AcoesCobranca({ id, acoes, saldo, hoje, temCreditoUsado }: {
           rotulo="Motivo do cancelamento"
           botao="Confirmar cancelamento"
           destrutivo
-          aviso={`A cobrança fica cancelada; extras vinculados voltam a pendentes${temCreditoUsado ? " e o crédito de indicação usado volta ao saldo do cliente" : ""}. Se ela já foi emitida no banco, cancele lá também.`}
+          aviso={`A cobrança fica cancelada; extras vinculados voltam a pendentes${temCreditoUsado ? " e o crédito de indicação usado volta ao saldo do cliente" : ""}. Se ela já foi emitida no banco, cancele lá também. Para reemitir, use “Regerar previstas” (ou “Abrir mês”) no fechamento da competência: uma cobrança substituta é gerada.`}
           pendente={pendente}
           aoVoltar={() => setModo(null)}
           aoEnviar={(m) => executar(() => cancelar(id, m))}

@@ -19,10 +19,12 @@ const ATALHOS: { id: AtalhoParcelas; rotulo: string }[] = [
   { id: "2x_junto_nov_dez", rotulo: "2x junto das mensalidades de novembro e dezembro" },
 ];
 
-type Linha = { mes: string; valor: string; forma: ParcelaAdicional["forma"]; dia: string };
+/** id: parcela já gravada — mantido para atualizar no lugar (as cobranças continuam vinculadas). */
+type Linha = { id?: string; mes: string; valor: string; forma: ParcelaAdicional["forma"]; dia: string };
 
 function paraLinha(p: ParcelaAdicional): Linha {
   return {
+    ...(p.id ? { id: p.id } : {}),
     mes: String(p.mes),
     valor: (p.valor / 100).toFixed(2).replace(".", ","),
     forma: p.forma,
@@ -32,6 +34,7 @@ function paraLinha(p: ParcelaAdicional): Linha {
 
 function paraParcela(l: Linha): ParcelaAdicional {
   return {
+    ...(l.id ? { id: l.id } : {}),
     mes: Number(l.mes),
     valor: parseBRL(l.valor),
     forma: l.forma,

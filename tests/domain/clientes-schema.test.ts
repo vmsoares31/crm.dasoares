@@ -39,6 +39,14 @@ describe("linhaMassaSchema", () => {
   it("converte honorário em centavos", () => {
     expect(linhaMassaSchema.parse(l).honorario).toBe(123450);
   });
+  it("rejeita honorário zero ou negativo; vazio fica null", () => {
+    for (const honorario of ["0", "0,00", "-10,00"]) {
+      const r = linhaMassaSchema.safeParse({ ...l, honorario });
+      expect(r.success).toBe(false);
+      if (!r.success) expect(r.error.issues[0].message).toBe("Informe um honorário maior que zero.");
+    }
+    expect(linhaMassaSchema.parse({ ...l, honorario: "" }).honorario).toBeNull();
+  });
   it("rejeita clienteId que não é UUID", () => {
     expect(linhaMassaSchema.safeParse({ ...l, clienteId: "abc" }).success).toBe(false);
   });

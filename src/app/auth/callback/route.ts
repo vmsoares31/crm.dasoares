@@ -1,12 +1,13 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { urlPublica } from "@/lib/site";
 import { createServerClient } from "@/lib/supabase/server";
 
 const TIPOS: EmailOtpType[] = ["invite", "recovery", "magiclink", "signup", "email"];
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = request.nextUrl;
+  const { searchParams } = request.nextUrl;
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const tipo = searchParams.get("type") as EmailOtpType | null;
@@ -21,5 +22,5 @@ export async function GET(request: NextRequest) {
   }
 
   const destino = erro ? "/login?erro=link" : "/definir-senha";
-  return NextResponse.redirect(new URL(destino, origin));
+  return NextResponse.redirect(urlPublica(request.headers, request.nextUrl.origin, destino));
 }

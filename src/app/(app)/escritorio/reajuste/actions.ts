@@ -6,7 +6,7 @@ import { obterContrato } from "@/db/contratos";
 import { listarServicosExtras } from "@/db/servicos-extras";
 import { contratoElegivel, parsePercentual, reajustarTabelaExtras, reproporcionarParcelas, validarLimiteReajuste } from "@/domain/reajuste";
 import { registrarAuditoria } from "@/lib/auditoria";
-import { exigirPermissao } from "@/lib/auth";
+import { SemPermissaoError, exigirPermissao } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 
 export type FalhaLinha = { id: string; nome: string; erro: string };
@@ -18,10 +18,12 @@ const MSG = "Não foi possível concluir a operação. Tente novamente.";
 
 async function autorizar(): Promise<string | null> {
   try {
-    await exigirPermissao("escritorio.editar");
+    await exigirPermissao("reajuste.aplicar");
     return null;
-  } catch {
-    return "Você não tem permissão para aplicar o reajuste.";
+  } catch (e) {
+    return e instanceof SemPermissaoError
+      ? "Você não tem permissão para aplicar o reajuste."
+      : "Não foi possível verificar suas permissões. Tente novamente.";
   }
 }
 
@@ -60,7 +62,8 @@ export async function aplicarReajusteContratos(pctTexto: string, itens: ItemReaj
         ?? (temParcelas ? validarLimiteReajuste(c.parcela_adicional_total, parcelaPara, "Parcela adicional") : null);
       if (erroLimite) { falhas.push({ id: c.id, nome, erro: erroLimite }); continue; }
       const parcelas = reproporcionarParcelas(
-        c.parcelas.map((p) => ({ mes: p.mes, valor: p.valor, forma: p.forma as "junto_mensalidade" | "data_propria", dia: p.dia })),
+        // id da parcela: salvar_contrato atualiza no lugar (cobranças já geradas continuam vinculadas)
+        c.parcelas.map((p) => ({ id: p.id, mes: p.mes, valor: p.valor, forma: p.forma as "junto_mensalidade" | "data_propria", dia: p.dia })),
         parcelaPara,
       );
       const campos = {
@@ -71,7 +74,7 @@ export async function aplicarReajusteContratos(pctTexto: string, itens: ItemReaj
       const { error } = await supabase.rpc("salvar_contrato", { p_contrato_id: c.id, p_campos: campos, p_parcelas: parcelas.map((x) => ({ ...x })), p_motivo: motivo });
       if (error) {
         console.error("[reajuste] contrato", c.id, error.message);
-        falhas.push({ id: c.id, nome, erro: MSG });
+        falhas.push({ id: c.id, nome, erro: error.code === "22023" ? error.message : MSG });
         continue;
       }
       aplicados++;

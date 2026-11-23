@@ -51,6 +51,8 @@ export function dataISOValida(s: string): boolean {
 }
 
 function validar(l: LinhaCora, hoje: DataISO): string | null {
+  if (!l.nomePagador.trim()) return "Nome do pagador ausente";
+  if (!somenteDigitos(l.documento)) return "CPF/CNPJ ausente";
   if (l.tipo === "cartao") return "Cartão não vai ao arquivo do Cora";
   if (l.valor < CORA_VALOR_MINIMO) return "Valor abaixo de R$ 20,00";
   if (l.vencimento < hoje) return "Vencimento no passado";

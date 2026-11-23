@@ -48,6 +48,7 @@ export default async function CompetenciaPage({ params }: { params: Promise<{ co
     situacao: c.situacao,
     atrasada: ["emitida", "paga_parcial"].includes(c.situacao) && !c.saldo_dispensado && c.vencimento < hoje,
     motivoCancelamento: c.motivo_cancelamento,
+    excluidaDoMes: c.excluida_do_mes,
     descricao: c.descricao,
     itens: c.itens.map((i) => ({ tipo: i.tipo, descricao: i.descricao, valor: i.valor, refId: i.ref_id })),
   }));
@@ -57,7 +58,7 @@ export default async function CompetenciaPage({ params }: { params: Promise<{ co
       <CabecalhoPagina
         voltar={{ href: `/financeiro?competencia=${competencia}`, rotulo: "Painel do mês" }}
         titulo={`Fechamento · ${rotulo(competencia)}`}
-        descricao="Abra o mês para gerar uma cobrança prevista por contrato fechado de cliente ativo. Revise, ajuste itens ou exclua clientes do mês antes de exportar."
+        descricao="Abra o mês para gerar uma cobrança prevista por contrato fechado de cliente ativo. Revise, ajuste itens ou exclua clientes do mês antes de exportar. Para reemitir uma cobrança, cancele-a na página da cobrança e use “Regerar previstas” (ou “Abrir mês”): a substituta é gerada. Cobranças excluídas do mês não são geradas de novo."
         acoes={podeOperar ? (
           <>
             {previstas > 0 && <Link href={`/financeiro/${competencia}/exportar`} className={buttonVariants({ variant: "outline" })}>Exportar</Link>}

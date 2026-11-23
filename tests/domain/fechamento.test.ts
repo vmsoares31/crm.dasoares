@@ -10,6 +10,13 @@ const entrada = (o: Partial<EntradaFechamento> = {}): EntradaFechamento => ({
 });
 
 describe("montarCobrancasDoMes", () => {
+  it("honorário zero (ou negativo) conta como faltando: não gera cobrança de R$ 0", () => {
+    for (const honorario of [0, -100]) {
+      const r = montarCobrancasDoMes(entrada({ contratos: [contrato({ honorario, parcelas: [{ id: "p1", mes: 12, valor: 12500, forma: "data_propria", dia: null }] })] }));
+      expect(r.cobrancas).toHaveLength(0);
+      expect(r.naoGerados).toEqual([{ clienteId: "c1", clienteNome: "Cliente 1", motivo: "Falta: honorário" }]);
+    }
+  });
   it("só mensalidade", () => {
     const r = montarCobrancasDoMes(entrada());
     expect(r.cobrancas).toHaveLength(1);

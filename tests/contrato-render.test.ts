@@ -20,8 +20,8 @@ function textoDoXml(xml: string): string {
     .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'");
 }
 
-function renderizar(parcelas = parcelasFicticias) {
-  const c = clienteFicticio();
+function renderizar(parcelas = parcelasFicticias, cliente: Partial<Parameters<typeof clienteFicticio>[0]> = {}) {
+  const c = clienteFicticio(cliente);
   const campos = camposContrato(escritorioFicticio, c, c.contrato!, parcelas, "2026-11-23");
   const zip = new PizZip(renderizarContrato(MODELO, campos));
   return {
@@ -55,6 +55,27 @@ describe("renderizarContrato (modelo padrão)", () => {
       expect(header + footer).not.toContain(proibido);
     }
     expect(header).toContain("D. A. SOARES CONTABILIDADE LTDA.");
+  });
+
+  it("qualificação: rótulo CNPJ/CPF do contratante, CNPJ da contratada e “Sócio Administrador”", () => {
+    const pj = renderizar().doc;
+    const linhas = (...l: string[]) => `${l.join("\n")}\n`;
+    expect(pj).toContain(linhas("Contratante:", "EMPRESA FICTÍCIA LTDA", "CNPJ:", "11.222.333/0001-81"));
+    expect(pj).toContain(linhas("Sócio Administrador:", "Maria Fictícia"));
+    expect(pj).not.toContain("Sóci Administrador");
+    expect(pj).toContain(linhas("CNPJ:", "11.444.777/0001-61"));
+    const pf = renderizar(parcelasFicticias, { razao_social: "JOÃO FICTÍCIO", documento: "52998224725" }).doc;
+    expect(pf).toContain(linhas("Contratante:", "JOÃO FICTÍCIO", "CPF:", "529.982.247-25"));
+    expect(pf).toContain(linhas("CNPJ:", "11.444.777/0001-61"));
+  });
+
+  it("parágrafo único da 4.2 só cita a cláusula 4.7 quando há parcela adicional", () => {
+    expect(renderizar().doc).toContain(
+      "os honorários mensais e a parcela adicional prevista na cláusula 4.7 poderão ser revistos extraordinariamente",
+    );
+    const sem = renderizar([]).doc;
+    expect(sem).toContain("os honorários mensais poderão ser revistos extraordinariamente");
+    expect(sem).not.toContain("cláusula 4.7");
   });
 
   it("Anexo 1 continua lista única (cita o Simples Nacional entre os tributos)", () => {

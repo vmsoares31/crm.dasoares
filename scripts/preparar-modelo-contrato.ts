@@ -116,6 +116,22 @@ for (const [valor, tag] of QUALIFICACAO) {
   cursor = i + 1;
 }
 
+// 1.1) Rótulos da qualificação da CONTRATANTE: o documento pode ser CNPJ ou CPF
+// ({rotulo_documento}); corrige o erro de digitação "Sóci Administrador:". O rótulo da
+// CONTRATADA continua "CNPJ:" (o escritório é sempre pessoa jurídica).
+const iContratante = textos.findIndex((t) => t.trim() === "Contratante:");
+const iContratada = textos.findIndex((t) => t.trim() === "Contratada:");
+if (iContratante < 0 || iContratada < iContratante) falhar("blocos Contratante/Contratada não encontrados");
+function rotulo(texto: string): number {
+  const achados = textos
+    .map((t, i) => (i > iContratante && i < iContratada && t.trim() === texto ? i : -1))
+    .filter((i) => i >= 0);
+  if (achados.length !== 1) falhar(`rótulo "${texto}" encontrado ${achados.length} vezes na qualificação da contratante`);
+  return achados[0];
+}
+trocar(rotulo("CNPJ:"), "CNPJ:", "{rotulo_documento}:");
+trocar(rotulo("Sóci Administrador:"), "Sóci Administrador:", "Sócio Administrador:");
+
 function achar(prefixo: string): number {
   const achados = textos.map((t, i) => (t.trimStart().startsWith(prefixo) ? i : -1)).filter((i) => i >= 0);
   if (achados.length !== 1) falhar(`parágrafo "${prefixo}" encontrado ${achados.length} vezes`);
@@ -147,6 +163,13 @@ const paragrafoTag = (tag: string) =>
   `<w:p><w:pPr><w:pStyle w:val="Normal"/><w:jc w:val="both"/></w:pPr><w:r><w:t>${tag}</w:t></w:r></w:p>`;
 novos[i47] = paragrafoTag("{#tem_parcela_adicional}") + novos[i47];
 novos[i471] = novos[i471] + paragrafoTag("{/tem_parcela_adicional}");
+
+// 4.1) Parágrafo único da 4.2: a menção à parcela adicional (cl. 4.7) só sai quando ela existe.
+trocar(
+  achar("Parágrafo único – Independentemente do reajuste anual"),
+  "os honorários mensais e a parcela adicional prevista na cláusula 4.7 poderão",
+  "os honorários mensais{#tem_parcela_adicional} e a parcela adicional prevista na cláusula 4.7{/tem_parcela_adicional} poderão",
+);
 
 // 5) Cláusula 5: data de início.
 trocar(achar("A vigência do presente contrato"), "01/08/2026", "{data_inicio}");
@@ -207,7 +230,7 @@ for (const nome of Object.keys(zip.files)) {
 
 // Conferências finais.
 const final = textoDe(novoDoc);
-for (const proibido of ["PICONT", "Picont", "ANDREWS", "Andrews", "22.184.118", "37.781.049", "Cantagalo", "Victor Martins"]) {
+for (const proibido of ["PICONT", "Picont", "ANDREWS", "Andrews", "22.184.118", "37.781.049", "Cantagalo", "Victor Martins", "Sóci "]) {
   if (final.includes(proibido)) falhar(`texto fixo remanescente: ${proibido}`);
 }
 const paragrafosFinais = novoDoc.match(RE_PARAGRAFO)!;

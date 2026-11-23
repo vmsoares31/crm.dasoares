@@ -5,7 +5,7 @@ import { exigirPermissaoPagina } from "@/lib/auth";
 import { PainelReajuste } from "./painel-reajuste";
 
 export default async function ReajustePage() {
-  await exigirPermissaoPagina("escritorio.editar");
+  await exigirPermissaoPagina("reajuste.aplicar");
   const [contratos, servicos] = await Promise.all([listarContratosReajustaveis(), listarServicosExtras()]);
   return (
     <div className="space-y-6">

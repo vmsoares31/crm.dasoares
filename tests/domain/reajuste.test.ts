@@ -15,6 +15,11 @@ describe("reajustarTabelaExtras", () => {
 });
 
 describe("reproporcionarParcelas", () => {
+  it("preserva o id de cada parcela (salvar_contrato atualiza no lugar)", () => {
+    const r = reproporcionarParcelas([{ ...p(11, 10000), id: "a" }, { ...p(12, 10000), id: "b" }], 21000);
+    expect(r.map((x) => [x.id, x.valor])).toEqual([["a", 10500], ["b", 10500]]);
+  });
+
   it("mantém a soma em divisão desigual (3 parcelas)", () => {
     const r = reproporcionarParcelas([p(10, 10000), p(11, 10000), p(12, 10000)], 10001);
     expect(r.map((x) => x.valor)).toEqual([3334, 3334, 3333]);

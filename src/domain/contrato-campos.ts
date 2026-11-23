@@ -22,6 +22,8 @@ export type EscritorioContrato = Pick<
 /** Valores das tags do modelo de contrato (templates/contrato-padrao.docx). */
 export type CamposContrato = {
   contratante_razao: string;
+  /** "CNPJ" ou "CPF", conforme o documento do contratante. */
+  rotulo_documento: "CNPJ" | "CPF";
   contratante_cnpj: string;
   contratante_endereco: string;
   contratante_bairro: string;
@@ -64,6 +66,18 @@ function cep(s: string | null): string {
 
 const t = (s: string | null | undefined) => (s ?? "").trim();
 
+/** Campos do escritório sem os quais o contrato sairia com a qualificação da CONTRATADA errada. */
+function faltandoNoEscritorio(e: EscritorioContrato): string[] {
+  const f: string[] = [];
+  if (!t(e.razao_social)) f.push("razão social");
+  if (!somenteDigitos(e.cnpj ?? "")) f.push("CNPJ");
+  if (!endereco(e.logradouro, e.numero, e.complemento)) f.push("endereço");
+  if (!t(e.cidade) || !t(e.uf)) f.push("cidade/UF");
+  if (!t(e.responsavel_tecnico)) f.push("responsável técnico");
+  if (!t(e.crc)) f.push("CRC");
+  return f;
+}
+
 /** Monta os campos do contrato; lança erro (mensagem para o usuário) se faltar dado essencial. */
 export function camposContrato(
   escritorio: EscritorioContrato,
@@ -78,9 +92,12 @@ export function camposContrato(
   if (contrato.honorario == null) throw new Error("Contrato sem honorário");
   if (contrato.dia_vencimento == null) throw new Error("Contrato sem dia de vencimento");
   if (!contrato.data_inicio) throw new Error("Contrato sem data de início");
+  const faltaEscritorio = faltandoNoEscritorio(escritorio);
+  if (faltaEscritorio.length > 0) throw new Error(`Cadastro do escritório incompleto: ${faltaEscritorio.join(", ")}`);
 
   return {
     contratante_razao: t(cliente.razao_social),
+    rotulo_documento: somenteDigitos(cliente.documento ?? "").length === 11 ? "CPF" : "CNPJ",
     contratante_cnpj: formatarDocumento(cliente.documento ?? ""),
     contratante_endereco: endereco(cliente.logradouro, cliente.numero, cliente.complemento),
     contratante_bairro: t(cliente.bairro),

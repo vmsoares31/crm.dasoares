@@ -123,14 +123,51 @@ describe("planejarCompetencia — regras", () => {
     expect(e.extras[0].situacao).toBe("pendente");
   });
 
-  it("regerar mantém cobrança cancelada, paga e paga_parcial", () => {
+  it("regerar mantém cobrança excluída do mês, paga e paga_parcial", () => {
     const contratos = [contrato(1), contrato(2), contrato(3)];
     const existentes: CobrancaExistente[] = (["cancelada", "paga", "paga_parcial"] as const).map((s, i) => ({
       id: `e${i + 1}`, clienteId: `c${i + 1}`, contratoId: `k${i + 1}`, origem: "mensal", parcelaId: null, situacao: s,
+      excluidaDoMes: s === "cancelada",
     }));
     const p = planejarCompetencia({ ...dados(vazio(), contratos, true), cobrancasExistentes: existentes });
     expect(p.removidas).toEqual([]);
     expect(p.cobrancas).toHaveLength(0);
+  });
+
+  it("cobrança cancelada (sem excluir do mês) não bloqueia: abrir e regerar geram a substituta", () => {
+    const contratos = [contrato(1, { parcelas: [{ id: "p1", mes: 1, valor: 12500, forma: "data_propria", dia: 5 }] })];
+    const existentes: CobrancaExistente[] = [
+      { id: "e1", clienteId: "c1", contratoId: "k1", origem: "mensal", parcelaId: null, situacao: "cancelada", excluidaDoMes: false },
+      { id: "e2", clienteId: "c1", contratoId: "k1", origem: "parcela_avulsa", parcelaId: "p1", situacao: "cancelada" },
+    ];
+    for (const regerar of [false, true]) {
+      const p = planejarCompetencia({ ...dados(vazio(), contratos, regerar), cobrancasExistentes: existentes });
+      expect(p.removidas).toEqual([]);
+      expect(p.cobrancas.map((c) => `${c.origem}|${c.parcelaId ?? ""}`).sort()).toEqual(["mensal|", "parcela_avulsa|p1"]);
+      expect(p.mantidas.map((c) => c.id).sort()).toEqual(["e1", "e2"]);
+    }
+  });
+
+  it("cobrança excluída do mês bloqueia a chave ao abrir e ao regerar", () => {
+    const contratos = [contrato(1, { parcelas: [{ id: "p1", mes: 1, valor: 12500, forma: "data_propria", dia: 5 }] })];
+    const existentes: CobrancaExistente[] = [
+      { id: "e1", clienteId: "c1", contratoId: "k1", origem: "mensal", parcelaId: null, situacao: "cancelada", excluidaDoMes: true },
+      { id: "e2", clienteId: "c1", contratoId: "k1", origem: "parcela_avulsa", parcelaId: "p1", situacao: "cancelada", excluidaDoMes: true },
+    ];
+    for (const regerar of [false, true]) {
+      const p = planejarCompetencia({ ...dados(vazio(), contratos, regerar), cobrancasExistentes: existentes });
+      expect(p.cobrancas).toHaveLength(0);
+    }
+  });
+
+  it("cancelada + substituta já gerada: a substituta bloqueia (não duplica)", () => {
+    const contratos = [contrato(1)];
+    const existentes: CobrancaExistente[] = [
+      { id: "e1", clienteId: "c1", contratoId: "k1", origem: "mensal", parcelaId: null, situacao: "cancelada", excluidaDoMes: false },
+      { id: "e2", clienteId: "c1", contratoId: "k1", origem: "mensal", parcelaId: null, situacao: "emitida", excluidaDoMes: false },
+    ];
+    expect(planejarCompetencia({ ...dados(vazio(), contratos, false), cobrancasExistentes: existentes }).cobrancas).toHaveLength(0);
+    expect(planejarCompetencia({ ...dados(vazio(), contratos, true), cobrancasExistentes: existentes }).cobrancas).toHaveLength(0);
   });
 
   it("parcela avulsa sem cobrança é gerada mesmo com mensal emitida", () => {

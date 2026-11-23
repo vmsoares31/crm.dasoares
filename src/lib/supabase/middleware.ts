@@ -2,14 +2,13 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 import type { Database } from "@/db/database.types";
+import { urlPublica } from "@/lib/site";
 
 const ROTAS_PUBLICAS = ["/login", "/recuperar-senha", "/auth/callback", "/definir-senha", "/api/saude"];
 
 function redirecionar(request: NextRequest, caminho: string, base: NextResponse) {
-  const url = request.nextUrl.clone();
-  url.pathname = caminho;
-  url.search = "";
-  const resposta = NextResponse.redirect(url);
+  // URL absoluta pela origem pública (NEXT_PUBLIC_SITE_URL / x-forwarded-*), nunca 0.0.0.0.
+  const resposta = NextResponse.redirect(urlPublica(request.headers, request.nextUrl.origin, caminho));
   base.cookies.getAll().forEach((c) => resposta.cookies.set(c));
   return resposta;
 }

@@ -46,4 +46,37 @@ describe("contratoSchema", () => {
     expect(!a.success && a.error.issues[0].message).toBe("Parcela 1: mês inválido.");
     expect(!b.success && b.error.issues[0].message).toBe("Parcela 1: dia inválido.");
   });
+
+  it("mantém o id das parcelas existentes e aceita parcelas novas sem id", () => {
+    const id = "6f1c2a7e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
+    const parcelas = JSON.stringify([
+      { id, mes: 11, valor: 12500, forma: "data_propria", dia: null },
+      { mes: 12, valor: 12500, forma: "junto_mensalidade", dia: null },
+    ]);
+    const r = contratoSchema.parse({ ...base, parcelas });
+    expect(r.parcelas[0]).toEqual({ id, mes: 11, valor: 12500, forma: "data_propria", dia: null });
+    expect(r.parcelas[1]).not.toHaveProperty("id");
+  });
+
+  it("rejeita id de parcela inválido ou repetido", () => {
+    const id = "6f1c2a7e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
+    const invalido = JSON.stringify([{ id: "x", mes: 12, valor: 100, forma: "junto_mensalidade", dia: null }]);
+    const repetido = JSON.stringify([
+      { id, mes: 11, valor: 100, forma: "junto_mensalidade", dia: null },
+      { id, mes: 12, valor: 100, forma: "junto_mensalidade", dia: null },
+    ]);
+    const a = contratoSchema.safeParse({ ...base, parcelas: invalido });
+    const b = contratoSchema.safeParse({ ...base, parcelas: repetido });
+    expect(!a.success && a.error.issues[0].message).toBe("Parcela 1: identificador inválido.");
+    expect(!b.success && b.error.issues[0].message).toBe("Parcela 2: identificador inválido.");
+  });
+
+  it("rejeita honorário zero e aceita honorário vazio (em negociação)", () => {
+    for (const honorario of ["0", "0,00", "R$ 0,00"]) {
+      const r = contratoSchema.safeParse({ ...base, honorario });
+      expect(r.success).toBe(false);
+      if (!r.success) expect(r.error.issues[0].message).toBe("Informe um honorário maior que zero.");
+    }
+    expect(contratoSchema.parse({ ...base, situacao: "em_negociacao", honorario: "" }).honorario).toBeNull();
+  });
 });
