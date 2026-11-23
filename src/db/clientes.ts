@@ -116,15 +116,27 @@ export async function listarOpcoesIndicacao(excluirId?: string): Promise<{ id: s
   return data.filter((c) => c.id !== excluirId);
 }
 
+/**
+ * Contagens do início. "A revisar" é um count no banco; "incompletos" depende da regra de
+ * completude (validação de CPF/CNPJ), calculada em JS sobre apenas as colunas que ela usa,
+ * paginadas pelo limite do PostgREST.
+ */
 export async function resumoPendencias(): Promise<{ aRevisar: number; incompletos: number }> {
   const supabase = await createServerClient();
-  const data = await buscarTodas<unknown>(
-    (de, ate) =>
-      supabase.from("clientes").select("*, socios(*), contratos(*)").neq("situacao", "inativo").order("id").range(de, ate) as never,
-  );
-  const todos = (data as Bruto[]).map(montar);
-  return {
-    aRevisar: todos.filter((c) => c.situacao === "a_revisar").length,
-    incompletos: todos.filter((c) => pendenciasCadastro(c).length > 0).length,
-  };
+  const [revisar, data] = await Promise.all([
+    supabase.from("clientes").select("id", { count: "exact", head: true }).eq("situacao", "a_revisar"),
+    buscarTodas<unknown>(
+      (de, ate) =>
+        supabase
+          .from("clientes")
+          .select("id, regime, email, documento, socios(administrador), contratos(situacao, honorario, dia_vencimento, carteira_id, tipo_cobranca, email_cobranca)")
+          .neq("situacao", "inativo")
+          .order("id")
+          .range(de, ate) as never,
+    ),
+  ]);
+  if (revisar.error) throw new Error(`Falha ao contar clientes a revisar: ${revisar.error.message}`);
+  // montar() só precisa dessas colunas para pendenciasCadastro; o restante do tipo não é usado aqui.
+  const todos = (data as unknown as Bruto[]).map(montar);
+  return { aRevisar: revisar.count ?? 0, incompletos: todos.filter((c) => pendenciasCadastro(c).length > 0).length };
 }

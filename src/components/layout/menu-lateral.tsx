@@ -40,7 +40,7 @@ const GRUPOS: Grupo[] = [
   {
     rotulo: "Financeiro",
     itens: [
-      { href: "/financeiro", rotulo: "Fechamento do mês", icone: ChartColumn },
+      { href: "/financeiro", rotulo: "Painel do mês", icone: ChartColumn },
       { href: "/financeiro/inadimplencia", rotulo: "Inadimplência", icone: CircleAlert },
     ],
   },

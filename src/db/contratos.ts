@@ -86,6 +86,7 @@ export type FiltroContratos = {
   situacao?: string;
   carteira?: string;
   legado?: string; // "sim" ou "nao"
+  documento?: string; // "sem" = nenhum documento gerado
   pagina?: number;
 };
 
@@ -96,7 +97,12 @@ export async function listarContratos(f: FiltroContratos): Promise<{ linhas: Con
   const pagina = Math.max(1, f.pagina ?? 1);
   let q = supabase
     .from("contratos")
-    .select("*, cliente:clientes!inner(id, razao_social), carteira:carteiras(nome)", { count: "exact" })
+    .select(
+      f.documento === "sem"
+        ? "*, cliente:clientes!inner(id, razao_social), carteira:carteiras(nome), contrato_documentos!left(id)"
+        : "*, cliente:clientes!inner(id, razao_social), carteira:carteiras(nome)",
+      { count: "exact" },
+    )
     .order("razao_social", { referencedTable: "clientes" })
     .order("id");
   const busca = (f.busca ?? "").trim().replace(/[,()%*\\]/g, " ").trim();
@@ -105,6 +111,7 @@ export async function listarContratos(f: FiltroContratos): Promise<{ linhas: Con
   if (f.carteira) q = q.eq("carteira_id", f.carteira);
   if (f.legado === "sim") q = q.eq("legado", true);
   if (f.legado === "nao") q = q.eq("legado", false);
+  if (f.documento === "sem") q = q.is("contrato_documentos", null);
   const { data, count, error } = await q.range((pagina - 1) * CONTRATOS_POR_PAGINA, pagina * CONTRATOS_POR_PAGINA - 1);
   if (error) throw new Error(`Falha ao listar contratos: ${error.message}`);
   const linhas = ((data ?? []) as unknown as (Contrato & { cliente: { id: string; razao_social: string }; carteira: { nome: string } | null })[])

@@ -10,13 +10,13 @@ import { CONTRATOS_POR_PAGINA, listarContratos } from "@/db/contratos";
 import { formatarBRL } from "@/domain/dinheiro";
 import { ROTULOS_SITUACAO_CONTRATO, ROTULOS_TIPO_COBRANCA } from "@/domain/rotulos";
 
-type Busca = { q?: string; situacao?: string; carteira?: string; legado?: string; pagina?: string };
+type Busca = { q?: string; situacao?: string; carteira?: string; legado?: string; documento?: string; pagina?: string };
 
 export default async function ContratosPage({ searchParams }: { searchParams: Promise<Busca> }) {
   const sp = await searchParams;
   const pagina = Math.max(1, Number(sp.pagina) || 1);
   const [{ linhas, total }, carteiras] = await Promise.all([
-    listarContratos({ busca: sp.q, situacao: sp.situacao, carteira: sp.carteira, legado: sp.legado, pagina }),
+    listarContratos({ busca: sp.q, situacao: sp.situacao, carteira: sp.carteira, legado: sp.legado, documento: sp.documento, pagina }),
     listarCarteiras(),
   ]);
   const paginas = Math.max(1, Math.ceil(total / CONTRATOS_POR_PAGINA));
@@ -49,6 +49,10 @@ export default async function ContratosPage({ searchParams }: { searchParams: Pr
             <option value="">Anteriores e novos</option>
             <option value="sim">Somente anteriores (legado)</option>
             <option value="nao">Somente novos</option>
+          </select>
+          <select name="documento" defaultValue={sp.documento ?? ""} className="campo" aria-label="Documento">
+            <option value="">Com ou sem documento</option>
+            <option value="sem">Sem documento gerado</option>
           </select>
           <div className="flex items-center gap-2 sm:ml-auto">
             <Link href="/contratos" className={buttonVariants({ variant: "ghost" })}>Limpar</Link>

@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { CabecalhoPagina } from "@/components/cabecalho-pagina";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { listarOpcoesIndicacao } from "@/db/clientes";
@@ -9,7 +11,8 @@ import { usuarioAtual } from "@/lib/auth";
 import { TabelaIndicacoes } from "./componentes";
 import { FormularioIndicacao } from "./formulario-indicacao";
 
-export default async function IndicacoesPage() {
+export default async function IndicacoesPage({ searchParams }: { searchParams: Promise<{ situacao?: string }> }) {
+  const sp = await searchParams;
   const usuario = await usuarioAtual();
   const podeEditar = !!usuario && pode(usuario.permissoes, "clientes.editar");
   const [linhas, escritorio, indicadores, indicaveis] = await Promise.all([
@@ -20,6 +23,8 @@ export default async function IndicacoesPage() {
   ]);
   const pct = Number(escritorio.indicacao_pct).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
   const total = (s: string) => linhas.filter((l) => l.situacao === s).reduce((t, l) => t + l.valor - l.consumido, 0);
+
+  const filtradas = ["aguardando", "liberado", "usado"].includes(sp.situacao ?? "") ? linhas.filter((l) => l.situacao === sp.situacao) : linhas;
 
   return (
     <div className="space-y-6">
@@ -44,12 +49,15 @@ export default async function IndicacoesPage() {
         <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
           <div className="flex gap-1.5"><dt className="text-muted-foreground">Indicações</dt><dd className="font-semibold tabular-nums text-heading">{linhas.length}</dd></div>
           <div className="flex gap-1.5"><dt className="text-muted-foreground">Aguardando 1º pagamento</dt><dd className="font-semibold tabular-nums text-heading">{formatarBRL(total("aguardando"))}</dd></div>
+          {sp.situacao && filtradas !== linhas && (
+            <div className="flex gap-1.5"><dt className="text-muted-foreground">Filtro</dt><dd className="font-semibold text-heading">{filtradas.length} {sp.situacao} · <Link href="/indicacoes" className="underline underline-offset-2">limpar</Link></dd></div>
+          )}
           <div className="flex gap-1.5"><dt className="text-muted-foreground">Liberado a usar</dt><dd className="font-semibold tabular-nums text-heading">{formatarBRL(total("liberado"))}</dd></div>
         </dl>
       </Card>
 
       <Card className="py-0">
-        <TabelaIndicacoes linhas={linhas} vazio="Nenhuma indicação registrada." />
+        <TabelaIndicacoes linhas={filtradas} vazio={sp.situacao ? "Nenhuma indicação nesta situação." : "Nenhuma indicação registrada."} />
       </Card>
     </div>
   );

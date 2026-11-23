@@ -55,6 +55,7 @@ export default async function CompetenciaPage({ params }: { params: Promise<{ co
   return (
     <div className="space-y-6">
       <CabecalhoPagina
+        voltar={{ href: `/financeiro?competencia=${competencia}`, rotulo: "Painel do mês" }}
         titulo={`Fechamento · ${rotulo(competencia)}`}
         descricao="Abra o mês para gerar uma cobrança prevista por contrato fechado de cliente ativo. Revise, ajuste itens ou exclua clientes do mês antes de exportar."
         acoes={podeOperar ? (
