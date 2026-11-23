@@ -24,7 +24,15 @@ const ehCuringa = (host: string) => /^0\.0\.0\.0(:\d+)?$/.test(host) || /^\[::\]
  */
 export function origemPublica(cabecalhos: Cabecalhos, origemRequisicao: string): string {
   const site = (process.env.NEXT_PUBLIC_SITE_URL ?? "").trim();
-  if (site) return site.replace(/\/+$/, "");
+  if (site) {
+    // Ignora um valor mal formado (ex.: sem https://) em vez de derrubar a requisição.
+    try {
+      const u = new URL(site);
+      if (u.protocol === "http:" || u.protocol === "https:") return u.origin;
+    } catch {
+      /* segue para os cabeçalhos */
+    }
+  }
 
   const req = new URL(origemRequisicao);
   const protoReq = req.protocol.replace(/:$/, "");
