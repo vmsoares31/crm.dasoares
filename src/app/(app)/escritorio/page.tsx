@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Layers, Wallet } from "lucide-react";
+import { Layers, TrendingUp, Wallet } from "lucide-react";
 
 import { CabecalhoPagina } from "@/components/cabecalho-pagina";
 import { buttonVariants } from "@/components/ui/button";
@@ -46,6 +46,11 @@ export default async function EscritorioPage() {
             <Link href="/escritorio/servicos-extras" className={buttonVariants({ variant: "outline" })}>
               <Layers aria-hidden /> Serviços extras
             </Link>
+            {!somenteLeitura && (
+              <Link href="/escritorio/reajuste" className={buttonVariants({ variant: "outline" })}>
+                <TrendingUp aria-hidden /> Reajuste anual
+              </Link>
+            )}
           </nav>
         }
       />
