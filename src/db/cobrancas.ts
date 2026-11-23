@@ -202,3 +202,111 @@ export async function contarExtrasPendentes(competencia: string): Promise<number
   if (error) throw new Error(error.message);
   return count ?? 0;
 }
+
+// ---------------------------------------------------------------------------
+// Baixa manual, cancelamento e dispensa de saldo (RPCs da migration 0008)
+// ---------------------------------------------------------------------------
+
+export type ResultadoBaixa = {
+  situacao: "paga" | "paga_parcial";
+  valorRecebido: number;
+  creditoLiberado: number;
+  indicadorId: string | null;
+};
+
+/** Registra um pagamento (data, valor em centavos); pode liberar o crédito do indicador. */
+export async function registrarBaixa(cobrancaId: string, data: string, valor: number): Promise<ResultadoBaixa> {
+  const supabase = await createServerClient();
+  const { data: r, error } = await supabase.rpc("registrar_baixa", { p_cobranca_id: cobrancaId, p_data: data, p_valor: valor });
+  if (error) throw erroRpc(error);
+  const o = (r ?? {}) as { situacao?: string; valor_recebido?: number; credito_liberado?: number; indicador_id?: string | null };
+  return {
+    situacao: o.situacao === "paga" ? "paga" : "paga_parcial",
+    valorRecebido: Number(o.valor_recebido ?? 0),
+    creditoLiberado: Number(o.credito_liberado ?? 0),
+    indicadorId: o.indicador_id ?? null,
+  };
+}
+
+/** Cancela com motivo uma cobrança ainda não paga; devolve o crédito de indicação estornado. */
+export async function cancelarCobranca(id: string, motivo: string): Promise<{ estornado: number }> {
+  if (!motivo.trim()) throw new ErroCobranca("Informe o motivo.");
+  const supabase = await createServerClient();
+  const { data, error } = await supabase.rpc("cancelar_cobranca", { p_cobranca_id: id, p_motivo: motivo.trim() });
+  if (error) throw erroRpc(error);
+  return { estornado: Number((data as { estornado?: number } | null)?.estornado ?? 0) };
+}
+
+/** Encerra o saldo restante de uma cobrança paga parcialmente. */
+export async function dispensarSaldo(id: string, motivo: string): Promise<void> {
+  if (!motivo.trim()) throw new ErroCobranca("Informe o motivo.");
+  const supabase = await createServerClient();
+  const { error } = await supabase.rpc("dispensar_saldo", { p_cobranca_id: id, p_motivo: motivo.trim() });
+  if (error) throw erroRpc(error);
+}
+
+export type PagamentoLinha = Pick<Tables<"pagamentos">, "id" | "data" | "valor" | "criado_em">;
+export type MovimentoLinha = Pick<Tables<"creditos_movimentos">, "id" | "tipo" | "valor" | "criado_em" | "cliente_id">;
+export type CobrancaDetalhe = Tables<"cobrancas"> & {
+  clienteNome: string;
+  itens: ItemLinha[];
+  pagamentos: PagamentoLinha[];
+  movimentos: MovimentoLinha[];
+};
+
+/** Cobrança com itens, pagamentos e movimentos de crédito ligados a ela; null se não existir. */
+export async function obterCobranca(id: string): Promise<CobrancaDetalhe | null> {
+  const supabase = await createServerClient();
+  const { data, error } = await supabase
+    .from("cobrancas")
+    .select("*, clientes(razao_social), cobranca_itens(id, tipo, descricao, valor, ref_id), pagamentos(id, data, valor, criado_em), creditos_movimentos(id, tipo, valor, criado_em, cliente_id)")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  const { clientes, cobranca_itens, pagamentos, creditos_movimentos, ...c } = data as typeof data & {
+    clientes: { razao_social: string } | null;
+    cobranca_itens: ItemLinha[] | null;
+    pagamentos: PagamentoLinha[] | null;
+    creditos_movimentos: MovimentoLinha[] | null;
+  };
+  const ordemTipo: Record<string, number> = { mensalidade: 0, extra: 1, parcela_adicional: 2, desconto_indicacao: 3 };
+  return {
+    ...(c as Tables<"cobrancas">),
+    clienteNome: clientes?.razao_social ?? "—",
+    itens: [...(cobranca_itens ?? [])].sort((a, b) => (ordemTipo[a.tipo] ?? 9) - (ordemTipo[b.tipo] ?? 9)),
+    pagamentos: [...(pagamentos ?? [])].sort((a, b) => a.data.localeCompare(b.data) || a.criado_em.localeCompare(b.criado_em)),
+    movimentos: [...(creditos_movimentos ?? [])].sort((a, b) => a.criado_em.localeCompare(b.criado_em)),
+  };
+}
+
+export type CobrancaAtrasada = {
+  id: string; clienteId: string; clienteNome: string; competencia: string; origem: string;
+  vencimento: string; total: number; valorRecebido: number; saldoAberto: number; situacao: string;
+};
+
+/**
+ * Inadimplência: cobranças emitidas ou pagas parcialmente, vencidas antes de hoje
+ * (America/Sao_Paulo) e com saldo em aberto — usa `v_cobrancas.atrasada`/`saldo_aberto`.
+ */
+export async function listarCobrancasAtrasadas(): Promise<CobrancaAtrasada[]> {
+  const supabase = await createServerClient();
+  type Linha = Pick<Tables<"v_cobrancas">, "id" | "cliente_id" | "competencia" | "origem" | "vencimento" | "total" | "valor_recebido" | "saldo_aberto" | "situacao"> & {
+    clientes: { razao_social: string } | null;
+  };
+  const linhas = await buscarTodas<Linha>((de, ate) =>
+    supabase
+      .from("v_cobrancas")
+      .select("id, cliente_id, competencia, origem, vencimento, total, valor_recebido, saldo_aberto, situacao, clientes(razao_social)")
+      .eq("atrasada", true)
+      .gt("saldo_aberto", 0)
+      .order("vencimento")
+      .order("id")
+      .range(de, ate) as never,
+  );
+  return linhas.map((l) => ({
+    id: l.id!, clienteId: l.cliente_id!, clienteNome: l.clientes?.razao_social ?? "—", competencia: l.competencia!,
+    origem: l.origem!, vencimento: l.vencimento!, total: l.total ?? 0, valorRecebido: l.valor_recebido ?? 0,
+    saldoAberto: l.saldo_aberto ?? 0, situacao: l.situacao!,
+  }));
+}

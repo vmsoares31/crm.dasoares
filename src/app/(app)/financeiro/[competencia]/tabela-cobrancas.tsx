@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Fragment, useState, useTransition } from "react";
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 
@@ -60,7 +61,7 @@ export function TabelaCobrancas({ competencia, cobrancas, podeOperar }: { compet
                         {expandida ? <ChevronDown className="size-4" aria-hidden /> : <ChevronRight className="size-4" aria-hidden />}
                       </button>
                     </td>
-                    <td className="max-w-80"><span className="block truncate font-medium">{c.clienteNome}</span></td>
+                    <td className="max-w-80"><Link href={`/financeiro/cobrancas/${c.id}`} className="block truncate font-medium hover:underline">{c.clienteNome}</Link></td>
                     <td className="whitespace-nowrap">{c.origem === "mensal" ? "Mensal" : "Parcela avulsa"}</td>
                     <td className="whitespace-nowrap">{formatarData(c.vencimento)}</td>
                     <td className="whitespace-nowrap tabular-nums">{formatarBRL(c.total)}</td>

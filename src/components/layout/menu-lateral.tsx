@@ -6,6 +6,7 @@ import { useState } from "react";
 import {
   Building2,
   ChartColumn,
+  CircleAlert,
   CirclePlus,
   FileText,
   HeartHandshake,
@@ -38,7 +39,10 @@ const GRUPOS: Grupo[] = [
   },
   {
     rotulo: "Financeiro",
-    itens: [{ href: "/financeiro", rotulo: "Fechamento do mês", icone: ChartColumn }],
+    itens: [
+      { href: "/financeiro", rotulo: "Fechamento do mês", icone: ChartColumn },
+      { href: "/financeiro/inadimplencia", rotulo: "Inadimplência", icone: CircleAlert },
+    ],
   },
   {
     rotulo: "Configurações",
@@ -48,6 +52,8 @@ const GRUPOS: Grupo[] = [
     ],
   },
 ];
+
+const HREFS = GRUPOS.flatMap((g) => g.itens.map((i) => i.href));
 
 export type UsuarioMenu = { nome: string; papel: string; mostrarUsuarios: boolean };
 
@@ -63,7 +69,10 @@ function iniciais(nome: string) {
 
 function ConteudoMenu({ usuario, aoNavegar }: { usuario: UsuarioMenu; aoNavegar?: () => void }) {
   const caminho = usePathname();
-  const ativo = (href: string) => caminho === href || caminho.startsWith(`${href}/`);
+  const casa = (href: string) => caminho === href || caminho.startsWith(`${href}/`);
+  // o item mais específico vence (ex.: /financeiro/inadimplencia não acende /financeiro)
+  const ativo = (href: string) =>
+    casa(href) && !HREFS.some((h) => h.length > href.length && h.startsWith(`${href}/`) && casa(h));
 
   return (
     <div className="flex h-full flex-col gap-6 px-4 pt-6 pb-4 text-sidebar-foreground">

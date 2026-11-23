@@ -7,6 +7,8 @@ export default defineConfig({
     environment: "node",
     include: ["tests/**/*.test.ts"],
     // Integração (banco de desenvolvimento) só com INTEGRACAO=1.
+    // Os arquivos de integração usam o mesmo banco: um por vez.
+    fileParallelism: process.env.INTEGRACAO !== "1",
     exclude: process.env.INTEGRACAO === "1" ? ["**/node_modules/**"] : ["**/node_modules/**", "tests/integracao/**"],
   },
 });

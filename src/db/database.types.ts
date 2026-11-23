@@ -248,6 +248,7 @@ export type Database = {
           emitida_em: string | null
           id: string
           motivo_cancelamento: string | null
+          motivo_dispensa: string | null
           origem: string
           pago_em: string | null
           parcela_id: string | null
@@ -269,6 +270,7 @@ export type Database = {
           emitida_em?: string | null
           id?: string
           motivo_cancelamento?: string | null
+          motivo_dispensa?: string | null
           origem: string
           pago_em?: string | null
           parcela_id?: string | null
@@ -290,6 +292,7 @@ export type Database = {
           emitida_em?: string | null
           id?: string
           motivo_cancelamento?: string | null
+          motivo_dispensa?: string | null
           origem?: string
           pago_em?: string | null
           parcela_id?: string | null
@@ -1114,7 +1117,15 @@ export type Database = {
       }
     }
     Functions: {
+      cancelar_cobranca: {
+        Args: { p_cobranca_id: string; p_motivo: string }
+        Returns: Json
+      }
       cancelar_cobranca_prevista: {
+        Args: { p_cobranca_id: string; p_motivo: string }
+        Returns: undefined
+      }
+      dispensar_saldo: {
         Args: { p_cobranca_id: string; p_motivo: string }
         Returns: undefined
       }
@@ -1129,6 +1140,10 @@ export type Database = {
           p_competencia: string
           p_regerar: boolean
         }
+        Returns: Json
+      }
+      registrar_baixa: {
+        Args: { p_cobranca_id: string; p_data: string; p_valor: number }
         Returns: Json
       }
       salvar_contrato: {

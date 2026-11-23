@@ -36,7 +36,8 @@ describe.skipIf(!ATIVO)("competência (integração)", () => {
   }
 
   async function idsDosFixtures(): Promise<string[]> {
-    const { data } = await supabase.from("clientes").select("id").like("razao_social", `${PREFIXO}%`).throwOnError();
+    // só "TESTE-INTEGRACAO 1..3": não pega os fixtures de outros arquivos (ex.: "TESTE-INTEGRACAO BAIXA …")
+    const { data } = await supabase.from("clientes").select("id").like("razao_social", `${PREFIXO} _`).throwOnError();
     return (data ?? []).map((c) => c.id);
   }
 
